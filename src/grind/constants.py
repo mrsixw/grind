@@ -1,6 +1,6 @@
 """Project-wide constant definitions and data payloads.
 
-Scaffolding a new CLI from this template? Start here. App identity, update
+App identity, update
 and cache defaults, the colour palettes, and the holiday date tables all live
 in this one file, so renaming the tool never turns into a hunt through six
 modules. Nothing here imports from the rest of the package, so it is always
@@ -13,17 +13,19 @@ __all__ = [
     "BINARY_NAME",
     "BIRTHDAY",
     "BIRTHDAY_NAME",
-    "BURGER_RECIPES",
     "CAKE_RECIPES",
     "CHRISTMAS",
+    "COFFEE_RECIPES",
     "DEFAULT_CACHE_TTL",
     "DIWALI",
     "EID_AL_ADHA",
     "EID_AL_FITR",
+    "ENTRY_POINT_GROUP",
     "ENVVAR_PREFIX",
     "HANUKKAH_START",
     "HOLI_DATES",
     "HOLI_RAINBOW",
+    "HTTP_TIMEOUT_SECONDS",
     "LOG_FILENAME",
     "MID_AUTUMN",
     "PASSOVER_START",
@@ -34,6 +36,7 @@ __all__ = [
     "SUKKOT_START",
     "TTL_SUFFIX_MAP",
     "UPDATE_CHECK_REPO",
+    "USER_AGENT",
     "VERSION_CACHE_FILENAME",
     "VERSION_CACHE_TTL_SECONDS",
 ]
@@ -57,6 +60,14 @@ RELEASE_ASSET_URL = (
 )
 VERSION_CACHE_FILENAME = "latest_version.json"
 VERSION_CACHE_TTL_SECONDS = 86400  # 24 hours
+
+# ── Providers ──────────────────────────────────────────────────────────────
+
+#: Entry-point group third-party provider plugins register under.
+ENTRY_POINT_GROUP = "grind.providers"
+#: Per-request timeout for every provider built on HttpProvider.
+HTTP_TIMEOUT_SECONDS = 30
+USER_AGENT = f"{BINARY_NAME} (+https://github.com/{UPDATE_CHECK_REPO})"
 
 # ── Cache configuration ────────────────────────────────────────────────────
 
@@ -98,8 +109,8 @@ HOLI_RAINBOW = [
     "\033[38;5;75m",  # blue
 ]
 
-# Spinner items — fast food themed 🍔🍟🥤
-APP_ITEMS = ["🍔", "🧃", "🍟", "🥤", "🍦", "🍕", "🌮", "🌯", "🥪", "🍿"]
+# Spinner items — coffee-shop counter themed ☕🥐🍩
+APP_ITEMS = ["☕", "🫘", "🥐", "🍩", "🧋", "🫖", "🥛", "🍪", "🧁", "🥯"]
 
 # ── Holiday date tables (2024–2045) ────────────────────────────────────────
 #
@@ -333,123 +344,86 @@ SUKKOT_START: dict[int, tuple[int, int]] = {
 BIRTHDAY: tuple[int, int] | None = (1, 8)
 #: Whose birthday it is, as it appears in the greeting.
 BIRTHDAY_NAME = "Steve"
-#: The burger surprise's fixed date.
+#: The coffee surprise's fixed date.
 CHRISTMAS: tuple[int, int] = (12, 25)
 
-# Real recipes, credited. Each carries a "source" so the easter egg points at
-# the people who developed the technique rather than passing it off as ours.
-BURGER_RECIPES = [
+# Real techniques, credited. Each carries a "source" so the easter egg points
+# at the person who developed it rather than passing it off as ours.
+COFFEE_RECIPES = [
     {
-        "title": "The Food Lab's Ultra-Smashed Cheeseburger",
-        "style": "Smash Burger (Maximum Crust, Lacy Edges)",
-        "patty": (
-            "4oz freshly ground beef chuck split into two 2oz balls. Two thin "
-            "patties rather than one thick one doubles the crust, and a slice "
-            "of cheese between them keeps the middle from drying out."
-        ),
-        "toppings": (
-            "A slice of good melting cheese such as American, shredded "
-            "lettuce, onions, pickles, mayonnaise and mustard, on a soft "
-            "buttered and toasted roll."
-        ),
-        "cook": (
-            "Preheat a heavy stainless or cast-iron skillet until there are no "
-            "hot spots, and leave it ungreased. Smash each ball to about "
-            "1/4-inch with a stiff riveted spatula, cook undisturbed 90 "
-            "seconds until deeply browned, then scrape underneath so the whole "
-            "crust lifts with the patty when you flip."
+        "title": "The Ultimate V60 Technique",
+        "style": "Pour-over (Clean, Sweet, Tea-like Clarity)",
+        "dose": "30g coffee to 500g water, just off the boil.",
+        "grind": "Medium-fine, a little finer than you would for a drip machine.",
+        "brew": (
+            "Rinse the paper. Bloom with 60g water and swirl until no dry "
+            "pockets remain, then wait 45 seconds. Pour to 300g by 1:15, and "
+            "to 500g by 1:45. Stir gently once each way, give the brewer a "
+            "final swirl, and let it draw down by about 3:30."
         ),
         "tip": (
-            "Smash immediately, while the meat is cool and the fat still "
-            "solid. Smashing a patty that has already been cooking squeezes "
-            "out the juices instead of building crust."
+            "The swirl after the last pour flattens the bed, which is what "
+            "keeps the water from channelling down one side."
         ),
-        "source": "J. Kenji López-Alt, Serious Eats",
-        "source_url": (
-            "https://www.seriouseats.com/ultra-smashed-cheeseburger-recipe-food-lab"
-        ),
+        "source": "James Hoffmann",
+        "source_url": "https://www.youtube.com/watch?v=AI4ynXzkSQo",
     },
     {
-        "title": "Kenji's Fat Diner-Style Burger",
-        "style": "Thick Diner Patty (Custom Grind, Deep Sear)",
-        "patty": (
-            "50% ground sirloin, 25% fatty short rib, 25% brisket — each cut "
-            "brings something different and they blend well. Form patties "
-            "about 5 inches wide and 3/4 inch thick."
-        ),
-        "toppings": (
-            "American or mature cheddar, griddled onions, lettuce, tomato and "
-            "pickles on a soft toasted bun."
-        ),
-        "cook": (
-            "Sear hard on both sides for colour, then finish over gentler heat "
-            "so the thick patty cooks through without the crust burning. Rest "
-            "before assembling."
+        "title": "The Ultimate French Press Technique",
+        "style": "Immersion (Full Body, No Sludge)",
+        "dose": "30g coffee to 500g water, just off the boil.",
+        "grind": "Medium, not the coarse grind the box tells you to use.",
+        "brew": (
+            "Pour all the water over the grounds and leave it alone for 4 "
+            "minutes. Stir the crust, scoop off the foam and floating bits, "
+            "then wait another 5 minutes or more. Rest the plunger on the "
+            "surface without pressing, and pour gently."
         ),
         "tip": (
-            "Grind your own if you can. The blend is the entire point of this "
-            "burger, and pre-ground chuck flattens it into an ordinary one."
+            "Patience is the whole recipe: the long second wait lets the "
+            "fines settle, so they stay in the pot and out of the cup."
         ),
-        "source": "J. Kenji López-Alt, Serious Eats",
-        "source_url": (
-            "https://food52.com/recipes/81708-j-kenji-lopez-alt-s-fat-diner-style-burgers-a-la-the-village-vanguard-s"
-        ),
+        "source": "James Hoffmann",
+        "source_url": "https://www.youtube.com/watch?v=st571DYYTR8",
     },
     {
-        "title": "Buttermilk-Brined Fried Chicken Sandwich",
-        "style": "Fried Chicken (Shatteringly Crisp, Craggy Coating)",
-        "patty": (
-            "Boneless thigh brined overnight in full-fat buttermilk with "
-            "pickle brine, hot sauce, salt, pepper and garlic powder. Thigh "
-            "over breast: it stays juicy well past where breast dries out."
-        ),
-        "toppings": (
-            "Three or four pickle chips and a sharp mayo-based sauce on a "
-            "split and lightly toasted brioche bun, which holds up to the "
-            "chicken better than a standard hamburger bun."
-        ),
-        "cook": (
-            "Dredge in flour with cornstarch and baking powder, seasoned with "
-            "paprika, cayenne and garlic powder, pressing it into the nooks. "
-            "Fry at 350°F for 4-5 min a side, to 165°F internal."
+        "title": "The Ultimate AeroPress Technique",
+        "style": "Immersion and Pressure (Quick, Forgiving, Travel-proof)",
+        "dose": "11g coffee to 200g water, boiling for light roasts.",
+        "grind": "Fine, towards the finer end of filter.",
+        "brew": (
+            "Brewer upright on the cup, no need to rinse the paper. Add the "
+            "coffee, pour all the water, and seat the plunger to stop the "
+            "drip. Wait 2 minutes, swirl gently, wait 30 seconds more, then "
+            "press slowly all the way through."
         ),
         "tip": (
-            "Double-dredge — flour, back through the wet, flour again — for a "
-            "crust that is both crispier and far less inclined to slide off "
-            "the chicken in the oil."
+            "Seating the plunger creates a vacuum that holds the water in, "
+            "so there is no need to brew it upside down."
         ),
-        "source": "The Kitchn",
-        "source_url": (
-            "https://www.thekitchn.com/fried-chicken-sandwich-recipe-23309973"
-        ),
+        "source": "James Hoffmann",
+        "source_url": "https://www.youtube.com/watch?v=j6VlT_jUVPc",
     },
     {
-        "title": "Really Awesome Black Bean Burgers",
-        "style": "Veggie (Firm Bite, Smoky and Deeply Savoury)",
-        "patty": (
-            "Two 15oz cans of black beans, rinsed, spread on a foil-lined "
-            "sheet and roasted about 20 min until mostly split and the skins "
-            "start to crisp. Bound with panko and chopped cashews, with "
-            "sautéed onion, poblano, garlic and chipotle for depth."
-        ),
-        "toppings": (
-            "Smoked cheese, quick-pickled red onion, crisp lettuce and a "
-            "chipotle mayo."
-        ),
-        "cook": (
-            "Pulse rather than purée, shape, then cook gently over moderate "
-            "heat in a skillet until a real crust forms on each side."
+        "title": "The Ultimate Moka Pot Technique",
+        "style": "Stovetop (Strong, Rich, Short)",
+        "dose": "Fill the basket level without tamping; water to the valve.",
+        "grind": "Fine, but coarser than espresso.",
+        "brew": (
+            "Fill the base with water straight from the kettle so the "
+            "coffee spends less time cooking. Brew over a low heat with the "
+            "lid up, and take it off the moment it starts to sputter."
         ),
         "tip": (
-            "Partially dehydrating the beans is the whole trick. It is the "
-            "water, not the beans, that makes most veggie burgers mushy."
+            "Run the base under a cold tap as soon as it comes off the heat. "
+            "That stops the brew before the bitter last drops come through."
         ),
-        "source": "J. Kenji López-Alt, Serious Eats",
-        "source_url": ("https://www.seriouseats.com/the-best-black-bean-burger-recipe"),
+        "source": "James Hoffmann",
+        "source_url": "https://www.youtube.com/watch?v=BfDLoIvb0w4",
     },
 ]
 
-# Cake is cake — these are shared verbatim with breakfast.
+# Cake is cake, and it goes with coffee — shared verbatim with breakfast.
 CAKE_RECIPES = [
     {
         "title": "Ultimate Rich & Fudgy Chocolate Cake",

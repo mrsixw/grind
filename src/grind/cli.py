@@ -1,26 +1,32 @@
-"""grind — a batteries-included Python CLI template.
-
-Replace the ``greet`` command with your own business logic.
-All infrastructure (themes, caching, update checks, shell completions,
-config file, XDG dirs, logging) is already wired up.
+"""grind — your tickets, freshly ground from every source.
 
 Structure: ``main`` is a Click group. Its callback resolves global flags
 against the config file once, into a single :class:`Settings` object stored
 on ``ctx.obj``. Subcommands declare ``@click.pass_obj`` and receive that one
-object — add new commands without threading individual option values
-through every function signature.
+object.
+
+The ticket commands never talk to JIRA or GitHub themselves. They resolve a
+source to a :class:`~grind.providers.Provider` and speak only the model in
+``tickets.py``, which is what lets a plugin add a new system without touching
+this file.
 """
 
+import hashlib
+import json
 import os
 import random
 import shutil
 import sys
 import time
+from dataclasses import asdict
 from enum import StrEnum, auto
 
 import click
+from tabulate import tabulate
 
-from .cache import parse_ttl
+# Imported for their side effect: each registers a built-in provider.
+from . import github, jira  # noqa: F401
+from .cache import parse_ttl, read_cache, write_cache
 from .config import load_config, show_config, update_config, write_default_config
 from .constants import (
     APP_ITEMS,
@@ -30,19 +36,28 @@ from .constants import (
     ENVVAR_PREFIX,
 )
 from .logger import configure as configure_logging
+from .providers import (
+    Provider,
+    ProviderError,
+    available_providers,
+    build_sources,
+    plugin_dir,
+    resolve_ref,
+)
 from .settings import Settings
+from .tickets import ME, STATES, ListQuery, Ticket, TicketChanges, TicketDraft
 from .ui import (
     CALENDAR_NAMES,
     THEME_NAMES,
-    get_random_burger_recipe,
     get_random_cake_recipe,
+    get_random_coffee_recipe,
     get_theme,
     has_shown_holiday_gift,
     is_birthday,
     is_christmas,
     mark_holiday_gift_shown,
-    render_burger_recipe,
     render_cake_recipe,
+    render_coffee_recipe,
 )
 from .updater import UpdateStatus, check_for_update, perform_update
 
@@ -162,11 +177,11 @@ def resolve_option(flag_value, cfg: dict, key: str, default):
 )
 # ── Easter eggs ─────────────────────────────────────────────────────────────
 @click.option(
-    "--burger",
+    "--brew",
     is_flag=True,
     default=False,
     hidden=True,
-    help="Secret burger recipe easter egg.",
+    help="Secret coffee recipe easter egg.",
 )
 @click.option(
     "--cake",
@@ -188,16 +203,15 @@ def main(
     no_update_check,
     update_summary,
     debug_summary,
-    burger,
+    brew,
     cake,
 ):
-    """🍔 grind — a batteries-included Python CLI template.
+    """☕ grind — your tickets, freshly ground from every source.
 
-    A working 'hello world' that demonstrates themes, seasonal colours,
-    caching, config files, shell completions, and auto-update checks.
-    Replace the ``greet`` command with your own business logic.
+    One queue for JIRA, GitHub and anything else with an HTTP API. Configure
+    your sources with ``grind config init``, then see what is on your plate.
 
-    Running with no subcommand is equivalent to ``grind greet``.
+    Running with no subcommand is equivalent to ``grind list``.
     """
     # Before anything else, so the elapsed row covers config resolution too.
     started_at = time.monotonic()
@@ -242,13 +256,13 @@ def main(
         update_check=not (no_update_check or cfg.get("no-update-check", False)),
         update_summary=resolve_option(update_summary, cfg, "update-summary", False),
         debug_summary=resolve_option(debug_summary, cfg, "debug-summary", False),
-        burger=burger,
+        brew=brew,
         cake=cake,
         started_at=started_at,
     )
 
     if ctx.invoked_subcommand is None:
-        ctx.invoke(greet)
+        ctx.invoke(list_tickets)
 
 
 def _notify_update(settings: Settings) -> None:
@@ -269,7 +283,7 @@ def _serve_easter_eggs(settings: Settings) -> None:
 
     The once-a-year gifts are gated on colour: they are pure decoration, so a
     user who asked for plain output should not have them appear unbidden.
-    The explicit --burger/--cake flags are not gated — the user asked.
+    The explicit --brew/--cake flags are not gated — the user asked.
     All of it goes to stderr, so a piped stdout is never polluted.
     """
     if settings.colour and is_birthday() and not has_shown_holiday_gift("birthday"):
@@ -288,16 +302,16 @@ def _serve_easter_eggs(settings: Settings) -> None:
         )
 
     if settings.colour and is_christmas() and not has_shown_holiday_gift("christmas"):
-        recipe = get_random_burger_recipe()
+        recipe = get_random_coffee_recipe()
         click.echo(
-            render_burger_recipe(recipe, occasion="christmas", colour=settings.colour),
+            render_coffee_recipe(recipe, occasion="christmas", colour=settings.colour),
             err=True,
             color=settings.colour,
         )
         mark_holiday_gift_shown("christmas")
-    elif settings.burger:
+    elif settings.brew:
         click.echo(
-            render_burger_recipe(get_random_burger_recipe(), colour=settings.colour),
+            render_coffee_recipe(get_random_coffee_recipe(), colour=settings.colour),
             err=True,
             color=settings.colour,
         )
@@ -346,44 +360,488 @@ def finish_run(
         _print_debug_summary(settings, item_count, extra)
 
 
-# ── Greeting (demo command — replace with your own) ─────────────────────────
+# ── Tickets ─────────────────────────────────────────────────────────────────
 
-
-@main.command()
-@click.option(
-    "--name",
-    default=None,
-    metavar="NAME",
-    help="Name to greet. Defaults to the current user.",
+_FORMATS = ("table", "json")
+_NO_SOURCES = (
+    "No sources configured, so there is nothing to grind. Run "
+    f"`{BINARY_NAME} config init` and add a [sources.<name>] table."
 )
-@click.pass_obj
-def greet(settings: Settings, name: str | None):
-    """Greet someone (the demo business logic — replace with your own)."""
-    spinner = random.choice(APP_ITEMS)
+
+
+def _fail(exc: ProviderError) -> click.ClickException:
+    return click.ClickException(str(exc))
+
+
+def _load_sources(settings: Settings) -> dict[str, Provider]:
+    """Build every configured source, or exit with a pointer to the config."""
+    try:
+        sources = build_sources(settings.cfg)
+    except ProviderError as exc:
+        raise _fail(exc) from exc
+    if not sources:
+        raise click.ClickException(_NO_SOURCES)
+    return sources
+
+
+def _pick_sources(
+    sources: dict[str, Provider], names: tuple[str, ...]
+) -> dict[str, Provider]:
+    unknown = [name for name in names if name not in sources]
+    if unknown:
+        raise click.ClickException(
+            f"Unknown source '{unknown[0]}'. Configured: {', '.join(sources)}."
+        )
+    return {name: sources[name] for name in names} if names else sources
+
+
+def _one_source(sources: dict[str, Provider], name: str | None) -> Provider:
+    if name:
+        return next(iter(_pick_sources(sources, (name,)).values()))
+    if len(sources) == 1:
+        return next(iter(sources.values()))
+    raise click.ClickException(
+        f"Which source? Pass --source. Configured: {', '.join(sources)}."
+    )
+
+
+def _resolve(settings: Settings, ref: str) -> tuple[dict, Provider, str]:
+    sources = _load_sources(settings)
+    try:
+        provider, key = resolve_ref(ref, sources)
+    except ProviderError as exc:
+        raise _fail(exc) from exc
+    return sources, provider, key
+
+
+def _progress(settings: Settings, message: str) -> None:
     click.echo(
-        click.style(f"Cooking up your CLI... {spinner}", fg="cyan"),
+        click.style(f"{message} {random.choice(APP_ITEMS)}", fg="cyan"),
         err=True,
         color=settings.colour,
     )
 
-    if name is None:
-        name = os.environ.get("USER", os.environ.get("USERNAME", "world"))
-    click.echo(settings.paint(f"Hello, {name}! 🍔"))
 
-    if settings.colour:
+def _request_rows(sources: dict[str, Provider]) -> dict[str, str]:
+    return {
+        f"Requests to {name}": str(provider.request_count)
+        for name, provider in sources.items()
+    }
+
+
+def _format(settings: Settings, output_format: str | None) -> str:
+    chosen = resolve_option(output_format, settings.cfg, "format", "table")
+    if chosen not in _FORMATS:
+        raise click.ClickException(
+            f"Invalid format '{chosen}' in config. Choose from: {', '.join(_FORMATS)}."
+        )
+    return chosen
+
+
+def _short_date(stamp: str) -> str:
+    return stamp[:10]
+
+
+def _clip(text: str, width: int) -> str:
+    return text if len(text) <= width else text[: width - 1] + "…"
+
+
+def _render_table(settings: Settings, tickets: list[Ticket]) -> str:
+    # The title gets whatever the terminal has left once the fixed columns
+    # are paid for, so a narrow window wraps nothing.
+    columns = shutil.get_terminal_size((120, 24)).columns
+    rows = [
+        [t.ref, t.status, t.assignee or "—", _short_date(t.updated), t.title]
+        for t in tickets
+    ]
+    headers = ["TICKET", "STATUS", "ASSIGNEE", "UPDATED", "TITLE"]
+    # Laid out by hand rather than by tabulate, whose header padding is not
+    # part of its contract: the title's budget has to be exact.
+    widths = [max(len(headers[i]), *(len(row[i]) for row in rows)) for i in range(4)]
+    title_width = max(20, columns - sum(widths) - 2 * len(widths))
+    table = "\n".join(
+        "  ".join(
+            [cell.ljust(width) for cell, width in zip(row, widths)]
+            + [_clip(row[4], title_width)]
+        )
+        for row in [headers, *rows]
+    )
+    header, *body = table.splitlines()
+    lines = [click.style(header, bold=True) if settings.colour else header]
+    lines += [settings.paint(line, index=i) for i, line in enumerate(body)]
+    return "\n".join(lines)
+
+
+def _render_ticket(settings: Settings, ticket: Ticket) -> str:
+    title = f"{ticket.ref}  {ticket.title}"
+    lines = [click.style(title, bold=True) if settings.colour else title]
+    facts = {
+        "Status": ticket.status,
+        "Type": ticket.type,
+        "Assignee": ticket.assignee or "—",
+        "Reporter": ticket.reporter,
+        "Labels": ", ".join(ticket.labels),
+        "Created": _short_date(ticket.created),
+        "Updated": _short_date(ticket.updated),
+        "URL": ticket.url,
+    }
+    lines += [f"  {label + ':':<10}{value}" for label, value in facts.items() if value]
+    if ticket.body:
+        lines += ["", ticket.body.rstrip()]
+    for comment in ticket.comments:
+        heading = f"💬 {comment.author} · {_short_date(comment.created)}"
+        lines += ["", settings.paint(heading, role="accent"), comment.body.rstrip()]
+    return "\n".join(lines)
+
+
+def _emit_ticket(settings: Settings, ticket: Ticket, output_format: str) -> None:
+    if output_format == "json":
+        click.echo(json.dumps(ticket.to_dict(), indent=2))
+    else:
+        click.echo(_render_ticket(settings, ticket))
+
+
+def _cached_list(
+    settings: Settings, provider: Provider, query: ListQuery
+) -> list[Ticket]:
+    """List from *provider*, through the disk cache when it is enabled."""
+    if not settings.cache_enabled:
+        return provider.list_tickets(query)
+    # The source's own config is part of the key, so editing a source's url
+    # or jql can never serve the old source's tickets.
+    material = json.dumps(
+        [provider.source, provider.config, asdict(query)], sort_keys=True, default=str
+    )
+    key = "list-" + hashlib.sha256(material.encode()).hexdigest()[:24]
+    cached = read_cache(key, settings.cache_ttl)
+    if cached is not None:
+        return [
+            Ticket(**{**row, "labels": tuple(row["labels"]), "comments": ()})
+            for row in cached
+        ]
+    tickets = provider.list_tickets(query)
+    write_cache(key, [{**asdict(t), "labels": list(t.labels)} for t in tickets])
+    return tickets
+
+
+@main.command("list")
+@click.option(
+    "-s",
+    "--source",
+    "source_names",
+    multiple=True,
+    metavar="NAME",
+    help="Only this source. Repeatable. Default: every configured source.",
+)
+@click.option(
+    "--mine/--all",
+    "mine",
+    default=True,
+    help="Tickets assigned to you (default), or to anyone.",
+)
+@click.option(
+    "--state",
+    type=click.Choice(STATES),
+    default="open",
+    show_default=True,
+    help="Which tickets to include.",
+)
+@click.option("-q", "--query", "text", default="", help="Free-text search.")
+@click.option(
+    "--in",
+    "container",
+    default="",
+    metavar="PROJECT",
+    help="Project or repository to look in, overriding the source's default.",
+)
+@click.option(
+    "--limit",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Most tickets to fetch per source. Default: 50.",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(_FORMATS),
+    default=None,
+    help="Output format. Default: table.",
+)
+@click.pass_obj
+def list_tickets(
+    settings: Settings,
+    source_names=(),
+    mine=True,
+    state="open",
+    text="",
+    container="",
+    limit=None,
+    output_format=None,
+):
+    """List tickets across your sources (the default command)."""
+    output_format = _format(settings, output_format)
+    sources = _pick_sources(_load_sources(settings), tuple(source_names))
+    query = ListQuery(
+        mine=mine,
+        state=state,
+        text=text,
+        limit=resolve_option(limit, settings.cfg, "limit", 50),
+        container=container,
+    )
+    _progress(settings, "Grinding through your tickets...")
+
+    tickets: list[Ticket] = []
+    failed = False
+    for provider in sources.values():
+        try:
+            tickets += _cached_list(settings, provider, query)
+        except ProviderError as exc:
+            # One source being down must not hide the others' tickets.
+            failed = True
+            click.echo(
+                click.style(f"⚠️  {exc}", fg="yellow"), err=True, color=settings.colour
+            )
+    tickets.sort(key=lambda t: t.updated, reverse=True)
+
+    if output_format == "json":
+        click.echo(json.dumps([t.to_dict() for t in tickets], indent=2))
+    elif tickets:
+        click.echo(_render_table(settings, tickets))
+    elif not failed:
         click.echo(
-            settings.theme.apply(f"  Theme: {settings.theme_name}", role="accent")
+            "☕ Nothing to grind. The cup is empty — put the kettle on.", err=True
         )
 
-    # Demonstrate rainbow cycling
-    if settings.theme_name == "rainbow" and settings.colour:
-        items = ["burgers", "shakes", "fries", "nuggets", "sodas"]
-        for i, item in enumerate(items):
-            click.echo(settings.theme.apply_cycle(f"  • {item}", i))
+    finish_run(settings, item_count=len(tickets), extra=_request_rows(sources))
+    if failed:
+        raise SystemExit(1)
 
-    # item_count and the extra rows are the demo's stand-in for whatever your
-    # command actually did — swap them for real counters.
-    finish_run(settings, item_count=1, extra={"Greeted": name})
+
+@main.command()
+@click.argument("ref")
+@click.option("--comments/--no-comments", default=False, help="Include comments.")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(_FORMATS),
+    default=None,
+    help="Output format. Default: table.",
+)
+@click.pass_obj
+def show(settings: Settings, ref: str, comments: bool, output_format: str | None):
+    """Show one ticket. REF is <source>:<key>, e.g. work:PROJ-123."""
+    output_format = _format(settings, output_format)
+    sources, provider, key = _resolve(settings, ref)
+    try:
+        ticket = provider.get_ticket(key, comments=comments)
+    except ProviderError as exc:
+        raise _fail(exc) from exc
+    _emit_ticket(settings, ticket, output_format)
+    finish_run(settings, item_count=1, extra=_request_rows(sources))
+
+
+def _read_body(body: str | None, body_file) -> str | None:
+    if body is not None and body_file is not None:
+        raise click.UsageError("Pass --body or --body-file, not both.")
+    if body_file is not None:
+        return body_file.read()
+    return body
+
+
+def _done(settings: Settings, message: str, sources: dict[str, Provider]) -> None:
+    """Report a successful write on stderr; the ticket itself goes to stdout."""
+    click.echo(click.style(message, fg="green"), err=True, color=settings.colour)
+    finish_run(settings, item_count=1, extra=_request_rows(sources))
+
+
+@main.command()
+@click.option("-s", "--source", "source_name", default=None, metavar="NAME")
+@click.option("-t", "--title", required=True, help="Ticket title.")
+@click.option("-b", "--body", default=None, help="Ticket description.")
+@click.option(
+    "--body-file",
+    type=click.File("r"),
+    default=None,
+    help="Read the description from a file ('-' for stdin).",
+)
+@click.option("--type", "ticket_type", default="", help="Ticket type, e.g. Bug.")
+@click.option("-l", "--label", "labels", multiple=True, help="Label. Repeatable.")
+@click.option(
+    "-a", "--assignee", default="", help=f"Who to assign. Use {ME} for yourself."
+)
+@click.option(
+    "--in",
+    "container",
+    default="",
+    metavar="PROJECT",
+    help="Project or repository to file it in.",
+)
+@click.pass_obj
+def create(
+    settings: Settings,
+    source_name,
+    title,
+    body,
+    body_file,
+    ticket_type,
+    labels,
+    assignee,
+    container,
+):
+    """Create a ticket. Prints the new ticket's reference on stdout."""
+    sources = _load_sources(settings)
+    provider = _one_source(sources, source_name)
+    draft = TicketDraft(
+        title=title,
+        body=_read_body(body, body_file) or "",
+        type=ticket_type,
+        labels=tuple(labels),
+        assignee=assignee,
+        container=container,
+    )
+    try:
+        ticket = provider.create_ticket(draft)
+    except ProviderError as exc:
+        raise _fail(exc) from exc
+    # The bare reference, so `grind show "$(grind create ...)"` composes.
+    click.echo(ticket.ref)
+    _done(settings, f"🫘 Freshly ground: {ticket.title} — {ticket.url}", sources)
+
+
+@main.command()
+@click.argument("ref")
+@click.option("-t", "--title", default=None, help="New title.")
+@click.option("-b", "--body", default=None, help="New description.")
+@click.option(
+    "--body-file",
+    type=click.File("r"),
+    default=None,
+    help="Read the new description from a file ('-' for stdin).",
+)
+@click.option("--add-label", "add_labels", multiple=True, help="Label to add.")
+@click.option("--remove-label", "remove_labels", multiple=True, help="Label to remove.")
+@click.pass_obj
+def edit(settings: Settings, ref, title, body, body_file, add_labels, remove_labels):
+    """Edit a ticket's title, description or labels."""
+    changes = TicketChanges(
+        title=title,
+        body=_read_body(body, body_file),
+        add_labels=tuple(add_labels),
+        remove_labels=tuple(remove_labels),
+    )
+    if changes.is_empty():
+        raise click.UsageError("Nothing to change. Pass at least one option.")
+    sources, provider, key = _resolve(settings, ref)
+    try:
+        ticket = provider.update_ticket(key, changes)
+    except ProviderError as exc:
+        raise _fail(exc) from exc
+    click.echo(ticket.ref)
+    _done(settings, f"✏️  Updated {ticket.ref}.", sources)
+
+
+@main.command()
+@click.argument("ref")
+@click.argument("body", required=False)
+@click.option(
+    "--body-file",
+    type=click.File("r"),
+    default=None,
+    help="Read the comment from a file ('-' for stdin).",
+)
+@click.pass_obj
+def comment(settings: Settings, ref, body, body_file):
+    """Add a comment to a ticket."""
+    text = _read_body(body, body_file)
+    if not text or not text.strip():
+        raise click.UsageError("A comment needs some words: pass BODY or --body-file.")
+    sources, provider, key = _resolve(settings, ref)
+    try:
+        provider.add_comment(key, text)
+    except ProviderError as exc:
+        raise _fail(exc) from exc
+    _done(settings, f"💬 Comment added to {provider.source}:{key}.", sources)
+
+
+@main.command()
+@click.argument("ref")
+@click.argument("user", required=False)
+@click.option("--nobody", is_flag=True, help="Unassign the ticket.")
+@click.pass_obj
+def assign(settings: Settings, ref, user, nobody):
+    """Assign a ticket to USER — to yourself when USER is omitted."""
+    if nobody and user:
+        raise click.UsageError("Pass a USER or --nobody, not both.")
+    sources, provider, key = _resolve(settings, ref)
+    try:
+        ticket = provider.assign(key, None if nobody else (user or ME))
+    except ProviderError as exc:
+        raise _fail(exc) from exc
+    click.echo(ticket.ref)
+    who = ticket.assignee or "nobody"
+    _done(settings, f"👤 {ticket.ref} is now assigned to {who}.", sources)
+
+
+@main.command()
+@click.argument("ref")
+@click.argument("status")
+@click.pass_obj
+def move(settings: Settings, ref, status):
+    """Move a ticket to STATUS, e.g. "In Progress", done, closed."""
+    sources, provider, key = _resolve(settings, ref)
+    try:
+        ticket = provider.transition(key, status)
+    except ProviderError as exc:
+        raise _fail(exc) from exc
+    click.echo(ticket.ref)
+    _done(settings, f"➡️  {ticket.ref} is now {ticket.status}.", sources)
+
+
+@main.command("sources")
+@click.option("--check", is_flag=True, help="Test each source's credentials.")
+@click.option(
+    "--plugin-dir",
+    "show_plugin_dir",
+    is_flag=True,
+    help="Print the directory provider plugins are installed into, and exit.",
+)
+@click.pass_obj
+def list_sources(settings: Settings, check: bool, show_plugin_dir: bool):
+    """Show the configured sources and the providers available to them."""
+    if show_plugin_dir:
+        click.echo(plugin_dir())
+        return
+    providers = available_providers()
+    try:
+        sources = build_sources(settings.cfg)
+    except ProviderError as exc:
+        raise _fail(exc) from exc
+
+    failed = False
+    rows = []
+    for name, provider in sources.items():
+        row = [name, provider.name, getattr(provider, "base_url", "")]
+        if check:
+            try:
+                row.append(f"✅ {provider.whoami()}")
+            except ProviderError as exc:
+                failed = True
+                row.append(f"❌ {exc}")
+        rows.append(row)
+    if rows:
+        headers = ["SOURCE", "PROVIDER", "URL"] + (["CHECK"] if check else [])
+        click.echo(tabulate(rows, headers=headers, tablefmt="plain"))
+    else:
+        click.echo(_NO_SOURCES, err=True)
+    click.echo("")
+    click.echo(
+        tabulate(
+            list(providers.items()), headers=["PROVIDER", "FROM"], tablefmt="plain"
+        )
+    )
+    finish_run(settings, item_count=len(rows), extra=_request_rows(sources))
+    if failed:
+        raise SystemExit(1)
 
 
 # ── Config management ───────────────────────────────────────────────────────

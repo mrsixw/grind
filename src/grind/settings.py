@@ -31,7 +31,7 @@ class Settings:
     cache_ttl: int = 300
     update_check: bool = True
     update_summary: bool = False
-    burger: bool = False
+    brew: bool = False
     cake: bool = False
     debug_summary: bool = False
     #: When this invocation started, for the debug summary's elapsed row.

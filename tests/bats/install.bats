@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 #
-# 🍔 install.sh — the published `curl | bash` install path.
+# ☕ install.sh — the published `curl | bash` install path.
 #
 # install.sh ships mode 644 and is documented as `curl ... | bash`, so the tests
 # drive it through `bash` exactly as a user would.

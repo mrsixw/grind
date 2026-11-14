@@ -1,17 +1,21 @@
 # Agent Instructions
 
 ## Project Overview
-- **grind** is a batteries-included Python CLI template (named after Five Guys: burgers, shakes & fries → five CLI essentials).
-- Built with Python and Click. Full infrastructure: themes, seasonal colours, caching, config files, XDG dirs, shell completions, auto-update checks, CI, release pipeline.
+- **grind** is a ticket CLI: one terminal queue for JIRA, GitHub Issues and any other HTTP ticket system, with list, show, create, edit, comment, assign and move.
+- The name is coffee-themed: tickets are the daily grind, and grind pours every source into one cup.
+- Built with Python and Click, scaffolded from the five-clis template: themes, seasonal colours, caching, config files, XDG dirs, shell completions, auto-update checks, CI, release pipeline.
 - Package structure: code in `src/grind/`, tests in `tests/`.
-- Use this as a GitHub template to scaffold new CLI apps.
 
 ## Project Structure
 - `src/grind/` — package source code
-  - `cli.py` — Click group entrypoint; subcommands share one `Settings` via `ctx.obj` (replace `greet` with your own commands)
+  - `cli.py` — Click group entrypoint and the ticket commands. Never names a ticket system: it resolves a source to a provider and speaks only the model in `tickets.py`
+  - `tickets.py` — the ticket model every provider translates to and from (`Ticket`, `Comment`, `ListQuery`, `TicketDraft`, `TicketChanges`)
+  - `providers.py` — the `Provider` plugin interface, the `HttpProvider` base class, the registry (built-ins plus `grind.providers` entry points), and reference parsing
+  - `github.py` — GitHub Issues provider
+  - `jira.py` — JIRA provider (Cloud REST v3, Server/Data Center REST v2)
   - `settings.py` — `Settings` dataclass resolved from flags + config file, received by subcommands via `@click.pass_obj`
-  - `ui.py` — Terminal themes, seasonal colour system (SEASONAL_PALETTES, PRIDE_RAINBOW, HOLI_RAINBOW, THEMES registry)
-  - `config.py` — TOML configuration loader
+  - `ui.py` — Terminal themes, seasonal colour system, coffee and cake easter eggs
+  - `config.py` — TOML configuration loader and the default config template
   - `cache.py` — Generic TTL disk cache
   - `updater.py` — GitHub release update checker
   - `logger.py` — File logging setup
@@ -21,6 +25,18 @@
 - `VERSION` — static file containing the current version string
 - `Makefile` — build, test, lint, format targets
 - `utils/` — helper scripts for release management
+- `docs/manual/` — user manual; `docs/design/` — design documents
+
+## Providers
+- A **provider** is a kind of ticket system; a **source** is one configured instance (`[sources.<name>]`). References are `<source>:<key>`.
+- Adding a system means adding a provider, never editing `cli.py`. See `docs/design/providers.md` and `docs/manual/plugins.md`.
+- Providers raise `ProviderError` for anything a user can act on, never print, and never read a token from anywhere but the environment.
+- Changing the `Provider` or `HttpProvider` interface, or anything in `tickets.py`, is a change to the public plugin API: update `docs/manual/plugins.md` in the same change, and treat removals as breaking.
+- Tests fake HTTP with `requests-mock` and assert on the requests sent as well as the result. Never call a real JIRA or GitHub from `tests/`.
+
+## Tone and Personality
+- Coffee-shop whimsy in the UI layer only: spinner emoji, "Nothing to grind", the `--brew` easter egg. Keep the code underneath plain.
+- Command names stay literal (`list`, `create`, `move`) so nobody has to learn a pun to file a ticket.
 
 ## Environment
 - Python >= 3.11
@@ -84,14 +100,14 @@ Three layers. Choose by what is under test, not by what is easiest to write.
 ### End-to-end tests — behavioural
 - Gherkin `.feature` scenarios that describe what a user sees. Each runs the **built binary as a subprocess** with real arguments, real config files and real XDG paths, and fakes nothing — integration tests with real data.
 - Add a scenario only for what the real binary alone can prove: exit codes, stdout-versus-stderr, packaging, files on disk. Everything else is a unit test in `tests/test_cli.py`.
-- Offline by design: the harness disables the update check. A CLI that needs live calls adds a `live` marker gated on a token.
-- The harness reads `APP_NAME`, `BINARY_NAME` and `ENVVAR_PREFIX` from `constants.py`. Rewrite the `.feature` files for your CLI; leave `conftest.py` and `steps/` alone.
+- Offline by design: the harness disables the update check, and scenarios only exercise paths that fail before any network call. Live scenarios against a real JIRA or GitHub would need a `live` marker gated on a token; there are none yet.
+- The harness reads `APP_NAME`, `BINARY_NAME` and `ENVVAR_PREFIX` from `constants.py`.
 - Full detail: [docs/design/testing.md](docs/design/testing.md).
 
 ### Shell script tests — bats
 - Anything that is a shell script is tested with bats: `install.sh` and everything in `utils/`. A new script gets its `.bats` file in the same change.
 - Each test runs the real script as a subprocess with `gh`, `git`, `curl`, `tar` and `install` stubbed on `PATH` and `HOME` redirected into a temporary directory. Offline, and safe to run anywhere.
-- The helper reads `BINARY_NAME` from `constants.py`, so a CLI generated from this template inherits the suite working. Adapt the assertions in `install.bats` to your installer's messages; leave `helpers/common.bash` alone.
+- The helper reads `BINARY_NAME` from `constants.py`.
 - Stubs record their arguments: assert *what the script asked for*, not only what it printed. `assert_called_arg` matches a whole argument, so a quoting bug cannot hide behind a flattened command line.
 
 ## Commit Messages

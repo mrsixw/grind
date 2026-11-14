@@ -1,16 +1,70 @@
 # Options Reference
 
 `grind` is a command group. The options below are **global**: they go
-before the subcommand (`grind --theme rainbow greet`), are resolved once
+before the subcommand (`grind --theme rainbow list`), are resolved once
 against the config file, and are shared with every subcommand through a single
 settings object — so new commands never need their own copies of these flags.
 
 ## Commands
 
-### `greet [--name NAME]`
+### `list`
 
-The demo business command (also the default when no subcommand is given).
-Replace it with your own logic.
+List tickets across your sources. The default when no subcommand is given.
+
+| Option | Meaning |
+| ------ | ------- |
+| `-s`, `--source NAME` | Only this source. Repeatable. Default: every source |
+| `--mine` / `--all` | Tickets assigned to you (default), or to anyone |
+| `--state open\|closed\|all` | Which tickets to include. Default: `open` |
+| `-q`, `--query TEXT` | Free-text search |
+| `--in PROJECT` | Project or repository, overriding the source's default |
+| `--limit N` | Most tickets to fetch per source. Config key: `limit = 50` |
+| `--format table\|json` | Output format. Config key: `format = "table"` |
+
+Exits 1 if any source failed, after printing what the others returned.
+
+### `show REF [--comments] [--format table|json]`
+
+Show one ticket, optionally with its comments.
+
+### `create`
+
+Create a ticket. Prints the new reference on stdout.
+
+| Option | Meaning |
+| ------ | ------- |
+| `-s`, `--source NAME` | Where to create it. Optional with a single source |
+| `-t`, `--title TEXT` | Title. Required |
+| `-b`, `--body TEXT` | Description |
+| `--body-file PATH` | Read the description from a file, `-` for stdin |
+| `--type NAME` | Ticket type, e.g. `Bug`. JIRA only; default `default-type` or `Task` |
+| `-l`, `--label NAME` | Label. Repeatable |
+| `-a`, `--assignee USER` | Assignee. `@me` for yourself |
+| `--in PROJECT` | Project or repository, overriding the source's default |
+
+### `edit REF`
+
+Change a ticket's title (`-t`), description (`-b` or `--body-file`), or labels
+(`--add-label`, `--remove-label`, both repeatable). At least one is required.
+
+### `comment REF [BODY] [--body-file PATH]`
+
+Add a comment.
+
+### `assign REF [USER] [--nobody]`
+
+Assign a ticket. With no `USER` it is assigned to you; `--nobody` unassigns.
+
+### `move REF STATUS`
+
+Move a ticket to another status. JIRA accepts a target status or a transition
+name; GitHub accepts `open`, `reopen`, `closed`, `done` and `not-planned`.
+
+### `sources [--check] [--plugin-dir]`
+
+List the configured sources and every available provider. `--check` calls
+each source to confirm its credentials work, and exits 1 if any do not.
+`--plugin-dir` prints where provider plugins are installed.
 
 ### `config show`
 
@@ -51,6 +105,34 @@ automatically.
 
 Not to be confused with `config update`, which merges new keys into your
 config file, or `--no-update-check`, which silences the passive notice.
+
+## Source configuration
+
+Sources live in the config file only; there are no flags for them.
+
+```toml
+[sources.oss]
+provider = "github"
+repo = "owner/repo"              # optional default repository
+token-env = "GITHUB_TOKEN"       # default: GH_TOKEN, then GITHUB_TOKEN
+url = "https://api.github.com"   # change for GitHub Enterprise
+
+[sources.work]
+provider = "jira"
+url = "https://example.atlassian.net"
+user = "you@example.com"         # omit for a Server/Data Center PAT
+token-env = "JIRA_TOKEN"         # default: JIRA_TOKEN, then JIRA_API_TOKEN
+project = "PROJ"                 # optional default project
+default-type = "Task"            # issue type used by create
+jql = "labels = backend"         # optional extra filter for list
+api-version = 3                  # 2 for Server / Data Center
+```
+
+`token-env` names an environment variable. The token itself never goes in the
+config file, so the file is always safe to commit or paste into a bug report.
+
+TOML requires tables to come after every top-level key, so keep the
+`[sources.*]` tables at the bottom of the file.
 
 ## Display options
 
@@ -174,15 +256,14 @@ much work was done, cache state, and whatever rows the command itself adds:
 ```text
 🐛 Debug summary
   Total elapsed:   0.04s
-  Items processed: 1
+  Items processed: 12
   Cache:           enabled, ttl 7200s
-  Greeted:         Steve
+  Requests to oss: 1
+  Requests to work: 2
 ```
 
-The last row comes from the `greet` command rather than the framework. Commands
-pass their own rows through `finish_run(settings, item_count=..., extra=...)`,
-which is where a scaffolded CLI adds request counts, rate-limit headroom, or
-bytes transferred.
+The `Requests to` rows count the upstream API calls each source made, which is
+the number to watch when a source is rate-limiting you.
 
 Config key: `debug-summary = false`
 

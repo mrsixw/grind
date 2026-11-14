@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "grind"
 dynamic = ["version"]
-description = "A batteries-included Python CLI template"
+description = "Your tickets, freshly ground from every source: JIRA, GitHub and pluggable HTTP providers"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

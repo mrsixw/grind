@@ -130,3 +130,89 @@ def _completion_evaluable(result, shell, binary_name):
     assert result.stdout.strip(), f"{shell} completion produced no stdout"
     assert "Usage:" not in result.stdout, f"usage text leaked into the {shell} script"
     assert "Error" not in result.stdout, f"an error leaked into the {shell} script"
+
+
+# ── Sources and provider plugins ───────────────────────────────────────────
+
+_TWO_SOURCES = """
+[sources.oss]
+provider = "github"
+
+[sources.work]
+provider = "jira"
+url = "https://jira.invalid"
+"""
+
+#: A real, read-only provider plugin, written to disk exactly as
+#: `pip install --target` would leave it: a module plus dist-info metadata
+#: carrying the entry point. It serves one canned ticket and counts a
+#: "request" each time it is actually asked, so the cache scenario can tell a
+#: cache hit from a fetch.
+_PLUGIN_MODULE = """
+from grind.providers import Provider
+from grind.tickets import Ticket
+
+
+class DecafProvider(Provider):
+    name = "decaf"
+
+    def _ticket(self):
+        return Ticket(
+            source=self.source,
+            key="DECAF-1",
+            title="Refill the decaf jar",
+            status="open",
+            updated="2026-11-01T09:00:00Z",
+        )
+
+    def list_tickets(self, query):
+        self.request_count += 1
+        return [self._ticket()]
+
+    def get_ticket(self, key, *, comments=False):
+        self.request_count += 1
+        return self._ticket()
+"""
+
+
+@given("a config file with GitHub and JIRA sources")
+def _two_sources(sandbox, app_name):
+    path = sandbox["config"] / app_name / "config.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_TWO_SOURCES)
+
+
+@given(parsers.parse('a config file with a "{provider}" source'))
+def _plugin_source(sandbox, app_name, provider):
+    path = sandbox["config"] / app_name / "config.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f'[sources.pot]\nprovider = "{provider}"\n')
+
+
+def _plugin_dir(sandbox, app_name) -> Path:
+    # cli_env sets no XDG_DATA_HOME, so the binary falls back to ~/.local/share.
+    return sandbox["home"] / ".local" / "share" / app_name / "plugins"
+
+
+@given(parsers.parse('a provider plugin named "{name}" is installed'))
+def _install_plugin(sandbox, app_name, name):
+    plugins = _plugin_dir(sandbox, app_name)
+    dist_info = plugins / f"{app_name}_{name}-0.1.0.dist-info"
+    dist_info.mkdir(parents=True)
+    (plugins / f"{app_name}_{name}.py").write_text(_PLUGIN_MODULE)
+    (dist_info / "METADATA").write_text(
+        f"Metadata-Version: 2.1\nName: {app_name}-{name}\nVersion: 0.1.0\n"
+    )
+    (dist_info / "entry_points.txt").write_text(
+        f"[{app_name}.providers]\n{name} = {app_name}_{name}:DecafProvider\n"
+    )
+
+
+@then("stdout names the plugin directory in the sandbox")
+def _plugin_dir_reported(result, sandbox, app_name):
+    assert result.stdout.strip() == str(_plugin_dir(sandbox, app_name))
+
+
+@then(parsers.parse('the JSON lists the ticket "{ref}"'))
+def _json_lists(payload, ref):
+    assert [ticket["ref"] for ticket in payload] == [ref]

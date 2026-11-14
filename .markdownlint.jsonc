@@ -1,5 +1,5 @@
 {
-  // markdownlint configuration for grind
+  // markdownlint configuration for five-clis
   // https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
 
   "default": true,

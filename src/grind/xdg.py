@@ -7,6 +7,7 @@ __all__ = [
     "get_cache_dir",
     "get_config_dir",
     "get_config_paths",
+    "get_data_dir",
     "get_state_dir",
 ]
 
@@ -52,6 +53,14 @@ def get_config_paths() -> list[Path]:
         get_config_dir() / "config.toml",
         Path.home() / f".{APP_NAME}.toml",
     ]
+
+
+def get_data_dir() -> Path:
+    """XDG data directory: $XDG_DATA_HOME/<app> or ~/.local/share/<app>."""
+    override = _xdg_override("XDG_DATA_HOME")
+    if override is not None:
+        return override / APP_NAME
+    return Path.home() / ".local" / "share" / APP_NAME
 
 
 def get_state_dir() -> Path:

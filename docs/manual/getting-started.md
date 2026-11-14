@@ -1,97 +1,112 @@
 # Getting Started with grind
 
-This guide walks you through everything you need to do after clicking **Use this template**
-on GitHub — from renaming the package to watching your first green CI run.
+From nothing to your first cup: install, point grind at your ticket systems,
+and list what is on your plate.
 
-## 1. Create your repo from the template
-
-On the [grind GitHub page](https://github.com/mrsixw/grind), click
-**Use this template → Create a new repository**. Give it a name (this becomes your CLI
-name, e.g. `myapp`).
-
-## 2. Clone and install dependencies
+## 1. Install
 
 ```bash
-git clone https://github.com/<you>/<myapp>
-cd <myapp>
-uv sync --extra dev
+curl -sSL https://raw.githubusercontent.com/mrsixw/grind/main/install.sh | bash
 ```
 
-Verify everything works before you change anything:
+This installs the `grind` executable, its man page, and shell completions.
+Python 3.11 or newer must be on your `PATH`.
+
+## 2. Create a config file
 
 ```bash
-make format && make lint && make test
+grind config init
 ```
 
-## 3. Rename the package
+This writes `~/.config/grind/config.toml` with every option commented out.
 
-grind has already been renamed from the five-clis template with its
-`utils/rename.py` script, which was removed once it had run.
+## 3. Add your sources
 
-## 4. Replace the demo business logic
+A **source** is one place tickets come from. Add a table for each at the
+bottom of the config file. The table's name is yours to choose; it becomes the
+prefix of every ticket reference from that source.
 
-`src/<pkg>/cli.py` contains a `greet` demo subcommand. Replace it with your own
-commands: add `@main.command()` functions that take `@click.pass_obj` to receive
-the shared `Settings` object (resolved theme, colours, cache options, config) —
-no need to thread individual flags through each function. Keep the surrounding
-infrastructure (themes, config, caching, update check) as-is.
+### GitHub Issues
 
-## 5. Add the `GH_TOKEN` secret
+```toml
+[sources.oss]
+provider = "github"
+repo = "acme/beans"      # optional: the default repository
+```
 
-The release CI job creates GitHub releases and pushes version tags. It needs a
-Personal Access Token (PAT) with write access — the auto-provided `GITHUB_TOKEN`
-doesn't have enough scope for this step.
-
-**Create a PAT:**
-
-1. Go to **GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens**
-2. Click **Generate new token**
-3. Set **Resource owner** to your account (or org)
-4. Under **Repository access**, select your new repo
-5. Under **Permissions → Repository permissions**, grant **Contents: Read and write**
-6. Click **Generate token** and copy the value
-
-**Add it as a secret:**
-
-1. Go to your repo: **Settings → Secrets and variables → Actions**
-2. Click **New repository secret**
-3. Name: `GH_TOKEN`
-4. Value: paste the PAT you just created
-5. Click **Add secret**
-
-Without this secret the `release` CI job will fail with:
-`Error: Input required and not supplied: token`
-
-## 6. Validate locally
+Create a token at **GitHub → Settings → Developer settings → Personal access
+tokens** with read and write access to issues, then export it:
 
 ```bash
-make format && make lint && make test
+export GITHUB_TOKEN=github_pat_...
 ```
 
-All three must exit clean before you push.
+`GH_TOKEN` is tried first, then `GITHUB_TOKEN`. For GitHub Enterprise, add
+`url = "https://ghe.example.com/api/v3"`.
 
-## 7. Push and watch CI
+### JIRA Cloud
+
+```toml
+[sources.work]
+provider = "jira"
+url = "https://acme.atlassian.net"
+user = "you@acme.example"
+project = "PROJ"         # optional: the default project
+```
+
+Create an API token at **Atlassian account → Security → API tokens**, then:
 
 ```bash
-git add -A
-git commit -m "feat: initial <myapp> CLI"
-git push -u origin main
+export JIRA_TOKEN=...
 ```
 
-Open **Actions** in your repo. You should see all jobs go green. The `release` job
-runs only on pushes to `main` (excluding version-bump commits), so your first push
-will trigger a release automatically.
+### JIRA Server or Data Center
 
-## What a green first run looks like
+```toml
+[sources.dc]
+provider = "jira"
+url = "https://jira.acme.example"
+api-version = 2
+```
 
-| Job | What it checks |
-| --- | -------------- |
-| `test` | pytest suite |
-| `lint` | ruff + black |
-| `spell` | typos across all files |
-| `docs-lint` | markdownlint on docs |
-| `build` | shiv binary compiles |
-| `man` | man page generates and compresses |
-| `completions` | bash/zsh/fish scripts generated and valid |
-| `release` | version bump, binary + man + completions attached, `gh release create` |
-| `verify-release` | installs from the published release and checks `--version` |
+Leave `user` out and export a personal access token as `JIRA_TOKEN`.
+
+### Several sources of the same kind
+
+Give each its own token variable with `token-env`:
+
+```toml
+[sources.client]
+provider = "jira"
+url = "https://client.atlassian.net"
+user = "you@acme.example"
+token-env = "CLIENT_JIRA_TOKEN"
+```
+
+Tokens are only ever read from the environment. Nothing secret goes in the
+config file.
+
+## 4. Check it works
+
+```bash
+grind sources --check
+```
+
+Each source reports the account its token belongs to, or the reason it was
+turned away.
+
+## 5. Grind
+
+```bash
+grind                       # your open tickets, everywhere
+grind show work:PROJ-123
+grind move work:PROJ-123 "In Progress"
+```
+
+The [Usage guide](usage.md) covers every command, and the
+[Options reference](options.md) every flag and config key.
+
+## 6. Something other than JIRA or GitHub?
+
+Any system with an HTTP API can be added as a provider plugin — see
+[Writing a provider](plugins.md).

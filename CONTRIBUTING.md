@@ -40,9 +40,8 @@ stubs record their arguments, so a test can assert *what the script asked for*
 rather than only what it printed.
 
 `bats` and `shellcheck` are fetched on demand with `npx`, and `typos` with
-`uvx` — nothing to install by hand beyond `node`. Because grind is a
-template, the suite reads `BINARY_NAME` from `constants.py` rather than
-hardcoding it, so a CLI generated from this template inherits it working.
+`uvx` — nothing to install by hand beyond `node`. The suite reads
+`BINARY_NAME` from `constants.py` rather than hardcoding it.
 
 ## Conventional commits
 

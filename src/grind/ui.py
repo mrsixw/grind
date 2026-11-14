@@ -20,9 +20,9 @@ import click
 from .constants import (
     BIRTHDAY,
     BIRTHDAY_NAME,
-    BURGER_RECIPES,
     CAKE_RECIPES,
     CHRISTMAS,
+    COFFEE_RECIPES,
     DIWALI,
     EID_AL_ADHA,
     EID_AL_FITR,
@@ -50,15 +50,15 @@ __all__ = [
     "colour_grade_number",
     "echo_err",
     "generate_terminal_url_anchor",
-    "get_random_burger_recipe",
     "get_random_cake_recipe",
+    "get_random_coffee_recipe",
     "get_theme",
     "has_shown_holiday_gift",
     "is_birthday",
     "is_christmas",
     "mark_holiday_gift_shown",
-    "render_burger_recipe",
     "render_cake_recipe",
+    "render_coffee_recipe",
 ]
 
 _RESET = "\033[0m"
@@ -426,9 +426,9 @@ def echo_err(msg: str, colour: bool = True, fg: str = "yellow") -> None:
 # ---------------------------------------------------------------------------
 
 
-def get_random_burger_recipe() -> dict:
-    """Return a randomly chosen burger recipe from the curated collection."""
-    return random.choice(BURGER_RECIPES)
+def get_random_coffee_recipe() -> dict:
+    """Return a randomly chosen coffee recipe from the curated collection."""
+    return random.choice(COFFEE_RECIPES)
 
 
 def get_random_cake_recipe() -> dict:
@@ -464,12 +464,12 @@ def generate_terminal_url_anchor(url: str, url_text: str = "Link") -> str:
     return f"\033]8;;{url}\033\\{url_text}\033]8;;\033\\"
 
 
-def render_burger_recipe(
+def render_coffee_recipe(
     recipe: dict, *, occasion: str | None = None, colour: bool = True
 ) -> str:
-    """Render a burger recipe banner.
+    """Render a coffee recipe banner.
 
-    *occasion* is None for the ``--burger`` flag, or ``"christmas"`` for the
+    *occasion* is None for the ``--brew`` flag, or ``"christmas"`` for the
     once-a-year gift, which only changes the header and its colour.
 
     With *colour* on, the title links to the recipe it came from. With it off
@@ -480,9 +480,9 @@ def render_burger_recipe(
     if colour:
         title = generate_terminal_url_anchor(recipe["source_url"], title)
     if occasion == "christmas":
-        header = f"🍔 🎄 Merry Christmas! Here is a Christmas burger: {title} 🎁"
+        header = f"☕ 🎄 Merry Christmas! Here is a Christmas brew: {title} 🎁"
     else:
-        header = f"🍔 Secret Burger Recipe: {title}"
+        header = f"☕ Secret Coffee Recipe: {title}"
 
     source = (
         recipe["source"] if colour else f"{recipe['source']} — {recipe['source_url']}"
@@ -495,9 +495,9 @@ def render_burger_recipe(
             bold=True,
         ),
         click.style(f"   Style:    {recipe['style']}", fg="cyan"),
-        click.style(f"   Patty:    {recipe['patty']}", fg="white"),
-        click.style(f"   Toppings: {recipe['toppings']}", fg="white"),
-        click.style(f"   Cook:     {recipe['cook']}", fg="white"),
+        click.style(f"   Dose:     {recipe['dose']}", fg="white"),
+        click.style(f"   Grind:    {recipe['grind']}", fg="white"),
+        click.style(f"   Brew:     {recipe['brew']}", fg="white"),
         click.style(f"   Tip:      💡 {recipe['tip']}", fg="yellow"),
         click.style(f"   Source:   {source}", fg="bright_black"),
     ]

@@ -17,7 +17,7 @@ YELLOW="\033[33m"
 BLUE="\033[34m"
 RESET="\033[0m"
 
-echo -e "${BOLD}${BLUE}🍔 Firing up grind...${RESET}"
+echo -e "${BOLD}${BLUE}☕ Brewing up grind...${RESET}"
 
 echo -e "${YELLOW}Finding the latest version...${RESET}"
 RELEASE_BASE_URL="https://github.com/${REPO}/releases/latest/download"

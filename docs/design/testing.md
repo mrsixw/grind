@@ -1,6 +1,6 @@
 # Testing Strategy
 
-How this template is tested, and — more usefully — which layer a new test
+How grind is tested, and — more usefully — which layer a new test
 belongs in. A project scaffolded from here inherits both the harness and this
 rule; the rule is the more valuable half.
 
@@ -46,7 +46,7 @@ ENVVAR_PREFIX = "GRIND"  # GRIND_E2E_BINARY, GRIND_NO_UPDATE_CHECK
 
 Change those and `tests/e2e/conftest.py` and `tests/e2e/steps/` follow with no
 edits. The **`.feature` files are yours to rewrite** — they describe *this*
-CLI's behaviour (`greet`, `--theme`, `config init`), and yours will differ.
+CLI's behaviour (`list`, `--theme`, `config init`).
 
 ## Layout
 
