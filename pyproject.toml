@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fiveclis"
+dynamic = ["version"]
+description = "A batteries-included Python CLI template"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Steve Williams" }]
+dependencies = [
+  "click",
+  "requests",
+  "tabulate",
+  "tomli; python_version < '3.11'",
+]
+
+[project.scripts]
+five-clis = "fiveclis.cli:main"
+
+[project.optional-dependencies]
+test = [
+  "freezegun",
+  # Pinned below 10: pytest-bdd 8.1.0 (the latest release) calls
+  # FixtureManager._register_fixture and FixtureDef(baseid=...), both of which
+  # pytest 9 already flags as PytestRemovedIn10Warning. On pytest 10 the e2e
+  # suite would stop collecting entirely — and because `release` is gated on
+  # the e2e job, that blocks releases rather than merely failing a test.
+  # Remove once pytest-bdd ships a release that no longer uses them.
+  "pytest<10",
+  "pytest-bdd>=8.1,<9",
+  "requests-mock",
+]
+lint = [
+  "black",
+  "ruff",
+]
+build = [
+  "shiv",
+  "click-man",
+]
+dev = [
+  "black",
+  "click-man",
+  "freezegun",
+  "pytest<10",  # see the note in the `test` extra
+  "pytest-bdd>=8.1,<9",
+  "requests-mock",
+  "ruff",
+  "shiv",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# End-to-end scenarios drive the built binary and need `make build`. Excluded
+# by default so a bare `pytest` stays fast; `make e2e` passes `-m e2e` on the
+# command line, which wins.
+addopts = "-m 'not e2e'"
+markers = [
+  "e2e: drives the built binary as a subprocess (needs `make build`)",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
