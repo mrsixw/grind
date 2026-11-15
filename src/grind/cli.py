@@ -51,6 +51,7 @@ from .ui import (
     THEME_NAMES,
     get_random_cake_recipe,
     get_random_coffee_recipe,
+    get_random_pastry_recipe,
     get_theme,
     has_shown_holiday_gift,
     is_birthday,
@@ -58,6 +59,7 @@ from .ui import (
     mark_holiday_gift_shown,
     render_cake_recipe,
     render_coffee_recipe,
+    render_pastry_recipe,
 )
 from .updater import UpdateStatus, check_for_update, perform_update
 
@@ -190,6 +192,13 @@ def resolve_option(flag_value, cfg: dict, key: str, default):
     hidden=True,
     help="Secret cake recipe easter egg.",
 )
+@click.option(
+    "--pastry",
+    is_flag=True,
+    default=False,
+    hidden=True,
+    help="Secret croissant and pain au chocolat easter egg.",
+)
 @click.pass_context
 def main(
     ctx,
@@ -205,6 +214,7 @@ def main(
     debug_summary,
     brew,
     cake,
+    pastry,
 ):
     """☕ grind — your tickets, freshly ground from every source.
 
@@ -258,6 +268,7 @@ def main(
         debug_summary=resolve_option(debug_summary, cfg, "debug-summary", False),
         brew=brew,
         cake=cake,
+        pastry=pastry,
         started_at=started_at,
     )
 
@@ -283,7 +294,7 @@ def _serve_easter_eggs(settings: Settings) -> None:
 
     The once-a-year gifts are gated on colour: they are pure decoration, so a
     user who asked for plain output should not have them appear unbidden.
-    The explicit --brew/--cake flags are not gated — the user asked.
+    The explicit --brew/--cake/--pastry flags are not gated — the user asked.
     All of it goes to stderr, so a piped stdout is never polluted.
     """
     if settings.colour and is_birthday() and not has_shown_holiday_gift("birthday"):
@@ -312,6 +323,15 @@ def _serve_easter_eggs(settings: Settings) -> None:
     elif settings.brew:
         click.echo(
             render_coffee_recipe(get_random_coffee_recipe(), colour=settings.colour),
+            err=True,
+            color=settings.colour,
+        )
+
+
+def _serve_pastry(settings: Settings) -> None:
+    if settings.pastry:
+        click.echo(
+            render_pastry_recipe(get_random_pastry_recipe(), colour=settings.colour),
             err=True,
             color=settings.colour,
         )
@@ -357,6 +377,7 @@ def finish_run(
     """
     _notify_update(settings)
     _serve_easter_eggs(settings)
+    _serve_pastry(settings)
     if settings.debug_summary:
         _print_debug_summary(settings, item_count, extra)
 

@@ -35,7 +35,7 @@
 - Tests fake HTTP with `requests-mock` and assert on the requests sent as well as the result. Never call a real JIRA or GitHub from `tests/`.
 
 ## Tone and Personality
-- Coffee-shop whimsy in the UI layer only: the coffee-coloured default theme, spinner emoji, "Nothing to grind", the `--brew` easter egg. Keep the code underneath plain.
+- Coffee-shop whimsy in the UI layer only: the coffee-coloured default theme, spinner emoji, "Nothing to grind", the `--brew` and `--pastry` easter eggs. Keep the code underneath plain.
 - Colour goes through `settings.paint` (theme with seasonal override) or `settings.theme.apply(text, role=...)`. Never hardcode a `fg=` colour in a command, or it ignores `--theme`.
 - Command names stay literal (`list`, `create`, `move`) so nobody has to learn a pun to file a ticket.
 

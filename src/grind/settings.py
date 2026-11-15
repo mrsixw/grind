@@ -33,6 +33,7 @@ class Settings:
     update_summary: bool = False
     brew: bool = False
     cake: bool = False
+    pastry: bool = False
     debug_summary: bool = False
     #: When this invocation started, for the debug summary's elapsed row.
     #: monotonic, so a clock adjustment mid-run cannot produce a negative time.

@@ -413,10 +413,23 @@ def test_cake_flag_prints_a_recipe(quiet_updates):
     assert "Secret Cake Recipe" in result.output
 
 
+def test_pastry_flag_prints_a_recipe(quiet_updates):
+    result = _invoke("--pastry", "sources")
+    assert result.exit_code == 0
+    assert "Secret Pastry Recipe" in result.output
+
+
+def test_pastry_goes_to_stderr(quiet_updates):
+    result = CliRunner().invoke(main, ["--pastry", "sources"])
+    assert "Secret Pastry Recipe" in result.stderr
+    assert "Secret Pastry Recipe" not in result.stdout
+
+
 def test_easter_egg_flags_are_hidden_from_help():
     result = _invoke("--help")
     assert "--brew" not in result.output
     assert "--cake" not in result.output
+    assert "--pastry" not in result.output
 
 
 def test_no_easter_eggs_by_default(quiet_updates):

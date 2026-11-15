@@ -29,6 +29,7 @@ __all__ = [
     "LOG_FILENAME",
     "MID_AUTUMN",
     "PASSOVER_START",
+    "PASTRY_RECIPES",
     "PRIDE_RAINBOW",
     "RELEASE_ASSET_URL",
     "ROSH_HASHANAH",
@@ -420,6 +421,73 @@ COFFEE_RECIPES = [
         ),
         "source": "James Hoffmann",
         "source_url": "https://www.youtube.com/watch?v=BfDLoIvb0w4",
+    },
+]
+
+# Something to have with the coffee. The method is the classic laminated
+# dough, described in general terms; the credited recipes have the exact
+# quantities and timings.
+PASTRY_RECIPES = [
+    {
+        "title": "Classic Butter Croissants",
+        "style": "Laminated Yeast Dough (Flaky Shell, Honeycomb Crumb)",
+        "dough": (
+            "A soft, enriched yeast dough of flour, milk, sugar, salt and a "
+            "little butter. Mix until just combined and chill it rather than "
+            "kneading: the rolling and folding develop it instead."
+        ),
+        "butter": (
+            "Cold unsalted butter beaten into a flat, pliable square, about "
+            "half the dough's weight, and chilled until it bends without "
+            "cracking."
+        ),
+        "shape": (
+            "Lock the butter in the dough and give it three letter folds, "
+            "chilling between each. Roll the dough out, cut long triangles, "
+            "notch the base and roll them up loosely towards the tip, then "
+            "curve the ends in."
+        ),
+        "bake": (
+            "Proof somewhere warm but not hot until puffy and wobbly, brush "
+            "with egg wash, and bake at about 400°F (200°C) until deep golden "
+            "brown, 15-20 minutes."
+        ),
+        "tip": (
+            "Keep everything cold. Butter that softens smears into the dough "
+            "instead of staying a separate layer, and the layers are what "
+            "make the flakes."
+        ),
+        "source": "King Arthur Baking",
+        "source_url": "https://www.kingarthurbaking.com/recipes/bakers-croissants-recipe",
+    },
+    {
+        "title": "Pain au Chocolat",
+        "style": "Laminated Yeast Dough (Two Seams of Dark Chocolate)",
+        "dough": (
+            "The same yeasted, butter-laminated dough as a croissant: an "
+            "enriched dough chilled overnight, so the gluten relaxes before "
+            "the rolling starts."
+        ),
+        "butter": (
+            "A cold, flat butter block locked into the dough and folded in "
+            "with letter folds, chilling between each so the layers stay "
+            "distinct."
+        ),
+        "shape": (
+            "Roll the dough out and cut it into rectangles. Lay a baton of "
+            "dark chocolate across one end, roll once, add a second baton and "
+            "roll again, finishing seam-side down."
+        ),
+        "bake": (
+            "Proof until puffy, brush with egg wash, and bake at about 400°F "
+            "(200°C) until deep golden brown and crisp at the edges."
+        ),
+        "tip": (
+            "Use proper baking batons, which hold their shape in the oven. A "
+            "broken-up chocolate bar melts and leaks out of the layers."
+        ),
+        "source": "King Arthur Baking",
+        "source_url": "https://www.kingarthurbaking.com/recipes/pain-au-chocolat-recipe",
     },
 ]
 

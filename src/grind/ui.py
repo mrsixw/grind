@@ -31,6 +31,7 @@ from .constants import (
     HOLI_RAINBOW,
     MID_AUTUMN,
     PASSOVER_START,
+    PASTRY_RECIPES,
     PRIDE_RAINBOW,
     ROSH_HASHANAH,
     SEASONAL_PALETTES,
@@ -52,6 +53,7 @@ __all__ = [
     "generate_terminal_url_anchor",
     "get_random_cake_recipe",
     "get_random_coffee_recipe",
+    "get_random_pastry_recipe",
     "get_theme",
     "has_shown_holiday_gift",
     "is_birthday",
@@ -59,6 +61,7 @@ __all__ = [
     "mark_holiday_gift_shown",
     "render_cake_recipe",
     "render_coffee_recipe",
+    "render_pastry_recipe",
     "seasonal_colour",
 ]
 
@@ -449,6 +452,11 @@ def get_random_coffee_recipe() -> dict:
     return random.choice(COFFEE_RECIPES)
 
 
+def get_random_pastry_recipe() -> dict:
+    """Return a randomly chosen pastry recipe from the curated collection."""
+    return random.choice(PASTRY_RECIPES)
+
+
 def get_random_cake_recipe() -> dict:
     """Return a randomly chosen cake recipe from the curated collection."""
     return random.choice(CAKE_RECIPES)
@@ -517,6 +525,31 @@ def render_coffee_recipe(
         click.style(f"   Grind:    {recipe['grind']}", fg="white"),
         click.style(f"   Brew:     {recipe['brew']}", fg="white"),
         click.style(f"   Tip:      💡 {recipe['tip']}", fg="yellow"),
+        click.style(f"   Source:   {source}", fg="bright_black"),
+    ]
+    return "\n".join(lines)
+
+
+def render_pastry_recipe(recipe: dict, *, colour: bool = True) -> str:
+    """Render a pastry recipe banner for the ``--pastry`` flag.
+
+    Credited like the coffee recipes: with *colour* on the title links to the
+    source, and with it off the URL moves into the Source row.
+    """
+    title = recipe["title"]
+    if colour:
+        title = generate_terminal_url_anchor(recipe["source_url"], title)
+    source = (
+        recipe["source"] if colour else f"{recipe['source']} — {recipe['source_url']}"
+    )
+    lines = [
+        click.style(f"🥐 Secret Pastry Recipe: {title}", fg=173, bold=True),
+        click.style(f"   Style:    {recipe['style']}", fg=180),
+        click.style(f"   Dough:    {recipe['dough']}", fg="white"),
+        click.style(f"   Butter:   {recipe['butter']}", fg="white"),
+        click.style(f"   Shape:    {recipe['shape']}", fg="white"),
+        click.style(f"   Bake:     {recipe['bake']}", fg="white"),
+        click.style(f"   Tip:      💡 {recipe['tip']}", fg=179),
         click.style(f"   Source:   {source}", fg="bright_black"),
     ]
     return "\n".join(lines)

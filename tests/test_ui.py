@@ -3,7 +3,12 @@ import datetime
 from freezegun import freeze_time
 
 from grind import ui as ui_mod
-from grind.constants import BIRTHDAY_NAME, CAKE_RECIPES, COFFEE_RECIPES
+from grind.constants import (
+    BIRTHDAY_NAME,
+    CAKE_RECIPES,
+    COFFEE_RECIPES,
+    PASTRY_RECIPES,
+)
 from grind.ui import (
     CALENDAR_NAMES,
     CALENDARS,
@@ -16,6 +21,7 @@ from grind.ui import (
     generate_terminal_url_anchor,
     get_random_cake_recipe,
     get_random_coffee_recipe,
+    get_random_pastry_recipe,
     get_theme,
     has_shown_holiday_gift,
     is_birthday,
@@ -23,6 +29,7 @@ from grind.ui import (
     mark_holiday_gift_shown,
     render_cake_recipe,
     render_coffee_recipe,
+    render_pastry_recipe,
 )
 
 
@@ -267,3 +274,30 @@ def test_corrupt_holiday_gift_state_shows_the_gift_again(tmp_path):
     # Showing a gift twice beats swallowing it for a whole year.
     (tmp_path / "birthday_gift.json").write_text("{not json")
     assert not has_shown_holiday_gift("birthday", datetime.date(2026, 1, 8), tmp_path)
+
+
+def test_pastry_recipes_share_a_shape():
+    fields = {"title", "style", "dough", "butter", "shape", "bake", "tip"}
+    for recipe in PASTRY_RECIPES:
+        assert fields | {"source", "source_url"} <= set(recipe)
+
+
+def test_random_pastry_comes_from_the_collection():
+    assert get_random_pastry_recipe() in PASTRY_RECIPES
+
+
+def test_render_pastry_recipe_credits_and_links_its_source():
+    recipe = PASTRY_RECIPES[0]
+    rendered = render_pastry_recipe(recipe)
+    assert "🥐 Secret Pastry Recipe" in rendered
+    assert (
+        generate_terminal_url_anchor(recipe["source_url"], recipe["title"]) in rendered
+    )
+    assert recipe["source"] in rendered
+
+
+def test_render_pastry_recipe_without_colour_shows_the_url_instead():
+    recipe = PASTRY_RECIPES[0]
+    rendered = render_pastry_recipe(recipe, colour=False)
+    assert "\033]8;;" not in rendered
+    assert recipe["source_url"] in rendered
