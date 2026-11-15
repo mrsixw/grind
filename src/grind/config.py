@@ -47,7 +47,7 @@ _DEFAULT_CONFIG_CONTENT = """\
 
 # ----- Display -----
 
-# Terminal colour theme.
+# Terminal colour theme. default is coffee: mocha, caramel and latte.
 # Choices: default, dark, light, mono, rainbow
 # Equivalent to: --theme <name>
 # theme = "default"

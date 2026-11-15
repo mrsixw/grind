@@ -85,7 +85,7 @@ when the move is not possible.
 ## Themes
 
 ```bash
-grind --theme default
+grind --theme default    # coffee: mocha, caramel and latte (the default)
 grind --theme dark
 grind --theme light
 grind --theme mono       # no colour
@@ -94,7 +94,8 @@ grind --theme rainbow    # cycling ROYGBIV
 
 ## Seasonal colours
 
-Seasonal colours are on by default. They change automatically around holidays:
+Seasonal colours are on by default. Around holidays they take over from the
+theme; the rest of the year you see the theme:
 
 ```bash
 grind                                  # western calendar (default)

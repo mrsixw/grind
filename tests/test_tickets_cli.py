@@ -10,6 +10,7 @@ import json
 
 import pytest
 from click.testing import CliRunner
+from freezegun import freeze_time
 
 from grind.cli import main
 from grind.tickets import ME, Comment, Ticket, TicketChanges
@@ -387,3 +388,20 @@ def test_a_bad_source_config_is_a_clean_error(grind):
     result = grind("list", config='[sources.x]\nprovider = "trello"\n')
     assert result.exit_code == 1
     assert "Unknown provider 'trello'" in result.stderr
+
+
+def test_list_is_coffee_coloured_by_default(tmp_path, monkeypatch, stocked):
+    """The table, its header and the progress line all wear the coffee theme."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.delenv("GRIND_NO_COLOUR", raising=False)
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(CONFIG)
+    with freeze_time("2026-11-15"):
+        result = CliRunner().invoke(
+            main, ["--config", str(cfg), "--no-update-check", "list"], color=True
+        )
+    assert result.exit_code == 0, result.output
+    header, *rows = result.stdout.splitlines()
+    assert "\x1b[38;5;173m" in header  # caramel
+    assert all(row.startswith("\x1b[38;5;137m") for row in rows)  # mocha
+    assert "\x1b[36m" not in result.output  # no leftover template cyan

@@ -31,6 +31,7 @@ oss:acme/beans#7  open         ada           2026-11-01  Descale the espresso ma
 | **Pluggable** | Any other system is a small Python class registered through an entry point — see [Writing a provider](docs/manual/plugins.md) |
 | **Scriptable** | Data on stdout, chatter on stderr, `--format json`, and write commands print the ticket reference |
 | **Safe by default** | Tokens are read from the environment, never from the config file |
+| **Coffee-coloured** | Mocha, caramel and latte by default, with seasonal colours on holidays and four other themes |
 
 ## Installation
 

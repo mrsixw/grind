@@ -140,6 +140,20 @@ TOML requires tables to come after every top-level key, so keep the
 
 Set the terminal colour theme. Choices: `default`, `dark`, `light`, `mono`, `rainbow`.
 
+| Theme | Look |
+| ----- | ---- |
+| `default` | Coffee: mocha rows, caramel headers, latte progress, matcha for success, honey for warnings, coffee-cherry red for errors |
+| `dark` | Bright blue and magenta, for dark terminals |
+| `light` | Blue and green, for light terminals |
+| `mono` | No colour at all |
+| `rainbow` | The Pride colours, one per row |
+
+The coffee browns are 256-colour shades picked to read on dark and light
+backgrounds alike. A terminal limited to 16 colours shows its nearest match.
+
+The theme colours every day the seasonal calendar has nothing to mark. On a
+holiday the seasonal colours take over, and the theme returns the day after.
+
 ```bash
 grind --theme rainbow
 grind --theme mono      # no colour
@@ -150,7 +164,8 @@ Config key: `theme = "default"`
 ### `--seasonal-colours` / `--no-seasonal-colours`
 
 Apply seasonal ANSI colours based on the current date (enabled by default).
-The colour scheme changes automatically for holidays and cultural events.
+On the holidays and cultural events of the chosen calendar they replace the
+theme's colours; on every other day the theme applies as usual.
 
 Config key: `seasonal-colours = true`
 

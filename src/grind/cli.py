@@ -272,7 +272,7 @@ def _notify_update(settings: Settings) -> None:
     update_msg = check_for_update(show_summary=settings.update_summary)
     if update_msg:
         click.echo(
-            click.style(update_msg, fg="cyan", bold=True),
+            click.style(settings.theme.apply(update_msg), bold=True),
             err=True,
             color=settings.colour,
         )
@@ -339,7 +339,8 @@ def _print_debug_summary(
         **(extra or {}),
     }
     width = max(len(label) for label in rows)
-    lines = [click.style("🐛 Debug summary", fg="cyan", bold=True)]
+    title = settings.theme.apply("🐛 Debug summary", role="accent")
+    lines = [click.style(title, bold=True)]
     lines += [f"  {label + ':':<{width + 1}} {value}" for label, value in rows.items()]
     click.echo("\n".join(lines), err=True, color=settings.colour)
 
@@ -416,7 +417,7 @@ def _resolve(settings: Settings, ref: str) -> tuple[dict, Provider, str]:
 
 def _progress(settings: Settings, message: str) -> None:
     click.echo(
-        click.style(f"{message} {random.choice(APP_ITEMS)}", fg="cyan"),
+        settings.theme.apply(f"{message} {random.choice(APP_ITEMS)}", role="muted"),
         err=True,
         color=settings.colour,
     )
@@ -467,14 +468,16 @@ def _render_table(settings: Settings, tickets: list[Ticket]) -> str:
         for row in [headers, *rows]
     )
     header, *body = table.splitlines()
-    lines = [click.style(header, bold=True) if settings.colour else header]
+    painted = settings.paint(header, role="accent")
+    lines = [click.style(painted, bold=True) if settings.colour else header]
     lines += [settings.paint(line, index=i) for i, line in enumerate(body)]
     return "\n".join(lines)
 
 
 def _render_ticket(settings: Settings, ticket: Ticket) -> str:
     title = f"{ticket.ref}  {ticket.title}"
-    lines = [click.style(title, bold=True) if settings.colour else title]
+    painted = settings.paint(title, role="accent")
+    lines = [click.style(painted, bold=True) if settings.colour else title]
     facts = {
         "Status": ticket.status,
         "Type": ticket.type,
@@ -599,7 +602,9 @@ def list_tickets(
             # One source being down must not hide the others' tickets.
             failed = True
             click.echo(
-                click.style(f"⚠️  {exc}", fg="yellow"), err=True, color=settings.colour
+                settings.theme.apply(f"⚠️  {exc}", role="warn"),
+                err=True,
+                color=settings.colour,
             )
     tickets.sort(key=lambda t: t.updated, reverse=True)
 
@@ -650,7 +655,9 @@ def _read_body(body: str | None, body_file) -> str | None:
 
 def _done(settings: Settings, message: str, sources: dict[str, Provider]) -> None:
     """Report a successful write on stderr; the ticket itself goes to stdout."""
-    click.echo(click.style(message, fg="green"), err=True, color=settings.colour)
+    click.echo(
+        settings.theme.apply(message, role="success"), err=True, color=settings.colour
+    )
     finish_run(settings, item_count=1, extra=_request_rows(sources))
 
 
