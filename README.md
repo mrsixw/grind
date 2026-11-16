@@ -27,6 +27,7 @@ $ grind
 | **Full CRUD** | `create`, `show`, `edit`, `comment`, `assign` and `move`, with the same verbs for every system |
 | **JIRA** | Cloud (REST v3), Server and Data Center (REST v2) |
 | **GitHub Issues** | github.com and GitHub Enterprise |
+| **Working contexts** | Switch focus with `grind context use`: one repo, a group of repos, a whole org, or a group of JIRA projects, yours or everyone's |
 | **Pluggable** | Any other system is a small Python class registered through an entry point — see [Writing a provider](docs/manual/plugins.md) |
 | **Scriptable** | Data on stdout, chatter on stderr, `--format json`, and write commands print the ticket reference |
 | **Safe by default** | Tokens are read from the environment, never from the config file |

@@ -134,6 +134,25 @@ _DEFAULT_CONFIG_CONTENT = """\
 #   jql = "labels = backend"         # optional extra filter for list
 #   api-version = 3                  # 2 for Server / Data Center
 #   mine = false                     # list everyone's tickets by default
+
+# ----- Working contexts -----
+# A context narrows one source. Switch with `grind context use <name>`, or
+# pick one for a single run with --context <name> / GRIND_CONTEXT. It takes the
+# source's scope keys (org, repo, repos, project, projects, jql) and mine,
+# never credentials. Setting any scope key replaces all of the source's own.
+
+# [contexts.grind]
+#   source = "oss"
+#   repos = ["owner/grind"]
+
+# [contexts.everything]
+#   source = "oss"
+#   org = "owner"
+#   mine = false
+
+# [contexts.platform]
+#   source = "work"
+#   projects = ["PLAT", "OPS"]
 """
 
 

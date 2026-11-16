@@ -41,6 +41,7 @@ class GitHubProvider(HttpProvider):
     """GitHub Issues, on github.com or GitHub Enterprise (set ``url``)."""
 
     name = "github"
+    scope_keys = ("org", "repo", "repos")
     default_url = "https://api.github.com"
     default_token_env = ("GH_TOKEN", "GITHUB_TOKEN")
 
