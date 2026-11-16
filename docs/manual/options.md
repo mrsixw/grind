@@ -31,6 +31,20 @@ contrasts a little, so the eye can find a field fast. On a holiday the
 seasonal colour takes over. Where it cycles (December, Pride, Holi), labels and
 values get neighbouring colours; otherwise the bold keeps them apart.
 
+Each field has an emoji in front of it:
+
+```text
+oss:acme/beans#7  Descale the espresso machine
+  🚦 Status:   open
+  🧩 Type:     issue
+  👤 Assignee: ada
+  📣 Reporter: grace
+  🔖 Labels:   chore
+  📅 Created:  2026-10-01
+  🔄 Updated:  2026-11-01
+  🔗 URL:      https://github.com/acme/beans/issues/7
+```
+
 ### `create`
 
 Create a ticket. Prints the new reference on stdout.

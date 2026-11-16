@@ -68,6 +68,7 @@ from .updater import UpdateStatus, check_for_update, perform_update
 
 __all__ = [
     "CONFIG_FREE_COMMANDS",
+    "FACT_EMOJI",
     "env_flag_is_set",
     "finish_run",
     "main",
@@ -421,6 +422,20 @@ _MIN_SHRINK_WIDTH = 20
 _ELLIPSIS_WIDTH = 1
 #: breakfast numbers its rows; grind does too, so the two read alike.
 _SHOW_INDEX = True
+#: The icon in front of each ``show`` field. Every one is East Asian Width
+#: "W" with emoji presentation by default, so each takes exactly two cells and
+#: the values stay aligned. Emoji needing a variation selector (🏷️, ✍️) are
+#: avoided: terminals disagree on how wide those are.
+FACT_EMOJI = {
+    "Status": "🚦",
+    "Type": "🧩",
+    "Assignee": "👤",
+    "Reporter": "📣",
+    "Labels": "🔖",
+    "Created": "📅",
+    "Updated": "🔄",
+    "URL": "🔗",
+}
 #: Cells a ``show`` field label is padded to, so the values line up.
 _FACT_LABEL_WIDTH = 10
 #: Palette positions for labels and values on days a seasonal palette cycles.
@@ -605,13 +620,15 @@ def _render_fact(settings: Settings, label: str, value: str) -> str:
     the label and value neighbouring colours. Most holidays have a single
     colour, and there the bold is what keeps the label apart from its value.
     """
+    icon = FACT_EMOJI[label]
     name = f"{label + ':':<{_FACT_LABEL_WIDTH}}"
     if not settings.colour:
-        return f"  {name}{value}"
+        return f"  {icon} {name}{value}"
     painted = click.style(
         settings.paint(name, role="label", index=_LABEL_INDEX), bold=True
     )
-    return f"  {painted}{settings.paint(value, role='value', index=_VALUE_INDEX)}"
+    shown = settings.paint(value, role="value", index=_VALUE_INDEX)
+    return f"  {icon} {painted}{shown}"
 
 
 def _render_ticket(settings: Settings, ticket: Ticket) -> str:
