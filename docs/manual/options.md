@@ -197,9 +197,13 @@ projects = ["PLAT", "OPS"]
 
 A context takes `source` (required), the scope keys its source's provider
 understands (`org`, `repo` and `repos` for GitHub; `project`, `projects` and
-`jql` for JIRA) and `mine`. It never takes credentials or URLs. Setting any
-scope key replaces all of the source's own, so a context's `org` is not
-out-ranked by the source's more specific `repo`.
+`jql` for JIRA, or whatever a plugin declares) and `mine`. Anything else,
+credentials and URLs above all, is refused when the context is used.
+
+Setting any scope key replaces the source's whole scope, `jql` included, so a
+context always says everything about where to look. A context's `org` is not
+out-ranked by the source's more specific `repo`, and a context that sets only
+`jql` searches with that alone, without the source's `project`.
 
 Precedence, highest first: command flags (`--in`, `--mine` / `--everyone`),
 then the context, then the source's own config.

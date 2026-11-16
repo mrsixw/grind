@@ -7,7 +7,9 @@ credentials. One context can be active at a time; which one is kept in the XDG
 state directory, so switching never rewrites the config file.
 
 Precedence, highest first: command flags, then the active context, then the
-source's own config.
+source's own config. A context that sets any of its provider's scope keys
+replaces the source's whole scope, so it always says everything about where to
+look.
 """
 
 from dataclasses import dataclass, field
@@ -18,10 +20,8 @@ from .logger import logger
 from .xdg import get_state_dir
 
 __all__ = [
-    "CONTEXT_KEYS",
     "Context",
     "ContextError",
-    "SCOPE_KEYS",
     "active_context_file",
     "apply_context",
     "load_contexts",
@@ -29,14 +29,9 @@ __all__ = [
     "write_active_context",
 ]
 
-#: Keys that choose *where* a source looks. A context that sets any of them
-#: replaces all of the source's own, so the source's ``repo`` can never
-#: out-rank the context's ``org`` just by being more specific.
-SCOPE_KEYS = ("org", "repo", "repos", "project", "projects")
-
-#: Every key a context may set. Anything else, credentials above all, is
-#: refused: a context narrows a source, it never redefines one.
-CONTEXT_KEYS = frozenset({"source", "jql", "mine", *SCOPE_KEYS})
+#: The order ``describe`` lists the built-in providers' scope keys in. Keys a
+#: plugin adds follow, in the order the context sets them.
+_DESCRIBE_ORDER = ("org", "repo", "repos", "project", "projects", "jql")
 
 _ACTIVE_FILENAME = "context"
 
@@ -57,7 +52,9 @@ class Context:
     def describe(self) -> str:
         """A one-line summary, e.g. ``oss: repos mrsixw/grind; yours``."""
         parts = []
-        for key in (*SCOPE_KEYS, "jql"):
+        keys = [key for key in _DESCRIBE_ORDER if key in self.overrides]
+        keys += [k for k in self.overrides if k not in keys and k != "mine"]
+        for key in keys:
             value = self.overrides.get(key)
             if value:
                 shown = ", ".join(value) if isinstance(value, list) else str(value)
@@ -70,9 +67,9 @@ class Context:
 def load_contexts(cfg: dict) -> dict[str, Context]:
     """Parse every ``[contexts.<name>]`` table in *cfg*.
 
-    Checks only what can be checked without the sources: the shape, the keys,
-    and that ``source`` is named. Whether that source exists, and whether its
-    provider takes the keys, is checked when the context is applied.
+    Checks only what can be checked without the sources: the shape, and that
+    ``source`` is named. Whether that source exists, and whether its provider
+    takes the other keys, is checked when the context is applied.
     """
     tables = cfg.get("contexts", {})
     if not isinstance(tables, dict):
@@ -81,12 +78,6 @@ def load_contexts(cfg: dict) -> dict[str, Context]:
     for name, table in tables.items():
         if not isinstance(table, dict):
             raise ContextError(f"Context '{name}' must be a table.")
-        unknown = sorted(set(table) - CONTEXT_KEYS)
-        if unknown:
-            raise ContextError(
-                f"Context '{name}' cannot set '{unknown[0]}'. A context takes "
-                f"only: {', '.join(sorted(CONTEXT_KEYS))}."
-            )
         source = table.get("source")
         if not isinstance(source, str) or not source:
             raise ContextError(
@@ -106,7 +97,12 @@ def apply_context(context: Context, source_config: dict, scope_keys) -> dict:
 
     *scope_keys* are the keys the source's provider understands. A context
     setting a key outside them is an error rather than silently doing
-    nothing. ``mine`` is understood by every source.
+    nothing, and that is also what keeps credentials and URLs out: no
+    provider lists them. ``mine`` is understood by every source.
+
+    Setting any scope key replaces every scope key the source has, so the
+    source's ``repo`` can never out-rank the context's ``org`` by being more
+    specific, nor its ``project`` survive under the context's ``jql``.
     """
     accepted = {*scope_keys, "mine"}
     refused = sorted(set(context.overrides) - accepted)
@@ -117,8 +113,8 @@ def apply_context(context: Context, source_config: dict, scope_keys) -> dict:
             f"'{context.source}' does not take. It takes: {takes}."
         )
     merged = dict(source_config)
-    if any(key in context.overrides for key in SCOPE_KEYS):
-        for key in SCOPE_KEYS:
+    if any(key in context.overrides for key in scope_keys):
+        for key in scope_keys:
             merged.pop(key, None)
     merged.update(context.overrides)
     return merged

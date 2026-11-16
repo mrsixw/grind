@@ -237,11 +237,38 @@ def test_a_key_the_provider_does_not_take_fails_clearly(grind):
     assert "sets 'projects', which source 'oss' does not take" in result.stderr
 
 
-def test_a_context_cannot_carry_credentials(grind):
-    config = SOURCES + '[contexts.x]\nsource = "oss"\ntoken-env = "MINE"\n'
-    result = grind("list", config=config)
+@pytest.mark.parametrize("key", ["token-env", "url", "user", "provider"])
+def test_a_context_cannot_carry_credentials_or_redefine_the_source(grind, key):
+    config = SOURCES + f'[contexts.x]\nsource = "oss"\n{key} = "MINE"\n'
+    result = grind("context", "use", "x", config=config)
     assert result.exit_code == 1
-    assert "Context 'x' cannot set 'token-env'" in result.stderr
+    assert f"Context 'x' sets '{key}', which source 'oss' does not take" in (
+        result.stderr
+    )
+    assert read_active_context() is None
+
+
+def test_a_jql_only_context_replaces_the_sources_project(grind, requests_mock):
+    config = SOURCES + '[contexts.x]\nsource = "work"\njql = "labels = backend"\n'
+    grind("--context", "x", "list", config=config)
+    assert sent(requests_mock, "search/jql", "jql") == [
+        "(labels = backend) AND assignee = currentUser() "
+        "AND statusCategory != Done ORDER BY updated DESC"
+    ]
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("--context", "missing", "context", "use", "--none"),
+        ("--context", "missing", "context", "use", "grind"),
+        ("--context", "missing", "context", "list"),
+    ],
+)
+def test_a_bad_context_flag_cannot_block_the_context_commands(grind, args):
+    result = grind(*args)
+    assert result.exit_code == 0, result.output
+    assert "Unknown context 'missing'" in result.stderr
 
 
 def test_context_use_needs_exactly_one_of_a_name_or_none(grind):
@@ -265,14 +292,23 @@ def test_load_contexts_rejects_malformed_tables(table, message):
         load_contexts({"contexts": table})
 
 
-def test_apply_context_keeps_the_sources_other_keys():
+def test_apply_context_replaces_the_whole_scope_and_keeps_the_rest():
     context = Context("c", "work", {"projects": ["A"], "mine": False})
     merged = apply_context(
         context,
         {"url": "u", "project": "PROJ", "jql": "labels = x"},
         ("project", "projects", "jql"),
     )
-    assert merged == {"url": "u", "jql": "labels = x", "projects": ["A"], "mine": False}
+    assert merged == {"url": "u", "projects": ["A"], "mine": False}
+
+
+def test_a_plugin_scope_key_is_accepted_and_replaces_the_sources_own():
+    context = Context("c", "desk", {"board": ["ops"]})
+    merged = apply_context(
+        context, {"board": ["dev"], "team": "a", "token-env": "T"}, ("board", "team")
+    )
+    assert merged == {"board": ["ops"], "token-env": "T"}
+    assert context.describe() == "desk: board ops"
 
 
 def test_apply_context_without_scope_keys_leaves_the_scope_alone():

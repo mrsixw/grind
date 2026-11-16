@@ -139,7 +139,7 @@ _DEFAULT_CONFIG_CONTENT = """\
 # A context narrows one source. Switch with `grind context use <name>`, or
 # pick one for a single run with --context <name> / GRIND_CONTEXT. It takes the
 # source's scope keys (org, repo, repos, project, projects, jql) and mine,
-# never credentials. Setting any scope key replaces all of the source's own.
+# never credentials. Setting any scope key replaces the source's whole scope.
 
 # [contexts.grind]
 #   source = "oss"

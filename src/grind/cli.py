@@ -280,7 +280,11 @@ def main(
             resolve_option(table_style, cfg, "table-style", DEFAULT_TABLE_STYLE)
         )
         contexts = load_contexts(cfg)
-        context = _choose_context(contexts, context_name)
+        # The context commands are how a bad choice gets fixed, so a bad name
+        # must not stop them from running.
+        context = _choose_context(
+            contexts, context_name, strict=ctx.invoked_subcommand != "context"
+        )
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
 
@@ -315,17 +319,20 @@ def main(
         ctx.invoke(list_tickets)
 
 
-def _choose_context(contexts: dict, flagged: str | None):
+def _choose_context(contexts: dict, flagged: str | None, *, strict: bool = True):
     """Return the context in force: the flag or env var, else the stored one.
 
-    A name the user typed and got wrong is an error. A stored name that has
-    since left the config is only a warning: it must not lock the user out of
-    ``context use`` to pick another.
+    A name the user typed and got wrong is an error when *strict*, and a
+    warning otherwise. A stored name that has since left the config is only
+    ever a warning: it must not lock the user out of ``context use``.
     """
     if flagged:
-        if flagged not in contexts:
+        if flagged in contexts:
+            return contexts[flagged]
+        if strict:
             raise ContextError(_unknown_context(flagged, contexts))
-        return contexts[flagged]
+        click.echo(f"⚠️  {_unknown_context(flagged, contexts)} Ignored.", err=True)
+        return None
     stored = read_active_context()
     if stored is None:
         return None
