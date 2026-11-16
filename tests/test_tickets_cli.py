@@ -9,8 +9,10 @@ import json
 import pytest
 from click.testing import CliRunner
 from freezegun import freeze_time
+from wcwidth import wcswidth
 
 from grind.cli import main
+from grind.constants import TABLE_STYLES
 from grind.jira import text_to_adf
 
 GH = "https://api.github.com"
@@ -89,16 +91,86 @@ def both(requests_mock):
 # ── list ───────────────────────────────────────────────────────────────────
 
 
+def cells(line):
+    """Split one outline-table row into its stripped cell texts."""
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def table_rows(stdout):
+    """Return the header and body rows of an outline table, borders dropped."""
+    return [cells(line) for line in stdout.splitlines() if line.startswith("|")]
+
+
 def test_list_merges_sources_newest_first(grind, both):
     result = grind("list")
     assert result.exit_code == 0, result.output
-    lines = result.stdout.splitlines()
-    assert lines[0].split() == ["TICKET", "STATUS", "ASSIGNEE", "UPDATED", "TITLE"]
-    assert lines[1].startswith("work:PROJ-1")
-    assert lines[2].startswith("oss:acme/beans#7")
-    assert "Order more beans" in lines[1]
+    header, first, second = table_rows(result.stdout)
+    assert header == ["", "TICKET", "STATUS", "ASSIGNEE", "UPDATED", "TITLE"]
+    assert first[:2] == ["0", "work:PROJ-1"]
+    assert second[:2] == ["1", "oss:acme/beans#7"]
+    assert first[-1] == "Order more beans"
     assert "Grinding through your tickets" in result.stderr
     assert "Grinding" not in result.stdout
+
+
+def test_list_draws_an_outline_table_by_default(grind, both):
+    lines = grind("list").stdout.splitlines()
+    assert lines[0].startswith("+-") and lines[2].startswith("+=")
+    assert lines[-1].startswith("+-")
+
+
+@pytest.mark.parametrize("style", TABLE_STYLES)
+def test_every_table_style_renders_the_tickets(grind, both, style):
+    result = grind("--table-style", style, "list")
+    assert result.exit_code == 0, result.output
+    assert "work:PROJ-1" in result.stdout and "oss:acme/beans#7" in result.stdout
+
+
+def test_table_style_comes_from_the_config_file(grind, both):
+    result = grind("list", config='table-style = "simple"\n' + CONFIG)
+    assert result.exit_code == 0, result.output
+    assert not result.stdout.startswith("+")
+    assert result.stdout.splitlines()[1].startswith("--")
+
+
+def test_the_flag_beats_the_config_file_table_style(grind, both):
+    result = grind(
+        "--table-style", "grid", "list", config='table-style = "simple"\n' + CONFIG
+    )
+    assert result.stdout.startswith("+-")
+
+
+def test_an_unknown_table_style_in_config_lists_the_choices(grind, both):
+    result = grind("list", config='table-style = "fancy"\n' + CONFIG)
+    assert result.exit_code == 1
+    assert "Invalid table-style 'fancy'" in result.stderr
+    assert ", ".join(TABLE_STYLES) in result.stderr
+
+
+def test_list_clips_titles_to_fit_the_terminal(grind, requests_mock, monkeypatch):
+    long_title = "Descale the espresso machine before it seizes up " * 3
+    requests_mock.get(
+        f"{GH}/search/issues", json={"items": [gh_issue(title=long_title)]}
+    )
+    requests_mock.get(f"{JIRA}/search/jql", json={"issues": []})
+    width = 100
+    monkeypatch.setenv("COLUMNS", str(width))
+    lines = grind("list").stdout.splitlines()
+    assert max(len(line) for line in lines) == width
+    assert table_rows("\n".join(lines))[1][-1].endswith("…")
+
+
+def test_list_clips_wide_characters_by_their_terminal_width(
+    grind, requests_mock, monkeypatch
+):
+    requests_mock.get(
+        f"{GH}/search/issues", json={"items": [gh_issue(title="☕" * 80)]}
+    )
+    requests_mock.get(f"{JIRA}/search/jql", json={"issues": []})
+    width = 100
+    monkeypatch.setenv("COLUMNS", str(width))
+    lines = grind("list").stdout.splitlines()
+    assert max(wcswidth(line) for line in lines) <= width
 
 
 def test_list_json_is_pure_json_on_stdout(grind, both):
@@ -429,7 +501,9 @@ def test_list_is_coffee_coloured_by_default(tmp_path, monkeypatch):
             main, ["--config", str(cfg), "--no-update-check", "list"], color=True
         )
     assert result.exit_code == 0, result.output
-    header, *rows = result.stdout.splitlines()
+    top, header, rule, *rows, bottom = result.stdout.splitlines()
+    for border in (top, rule, bottom):
+        assert border.startswith("\x1b[38;5;180m")  # latte
     assert "\x1b[38;5;173m" in header  # caramel
     assert all(row.startswith("\x1b[38;5;137m") for row in rows)  # mocha
     assert "\x1b[36m" not in result.output  # no leftover template cyan

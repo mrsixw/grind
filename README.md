@@ -11,9 +11,12 @@ on, assign and move tickets without leaving the terminal.
 
 ```text
 $ grind
-TICKET            STATUS       ASSIGNEE      UPDATED     TITLE
-work:PROJ-123     In Progress  Ada Lovelace  2026-11-05  Order more beans
-oss:acme/beans#7  open         ada           2026-11-01  Descale the espresso machine
++----+------------------+-------------+--------------+------------+------------------------------+
+|    | TICKET           | STATUS      | ASSIGNEE     | UPDATED    | TITLE                        |
++====+==================+=============+==============+============+==============================+
+| 0  | work:PROJ-123    | In Progress | Ada Lovelace | 2026-11-05 | Order more beans             |
+| 1  | oss:acme/beans#7 | open        | ada          | 2026-11-01 | Descale the espresso machine |
++----+------------------+-------------+--------------+------------+------------------------------+
 ```
 
 ## What it does
