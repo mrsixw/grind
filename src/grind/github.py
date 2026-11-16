@@ -88,20 +88,32 @@ class GitHubProvider(HttpProvider):
 
         Most specific wins, and each level replaces the ones below it:
         ``--in``, then ``repos`` or ``repo``, then ``org``. An ``--in`` value
-        with a slash is a repo, and one without is an org or user.
+        with a slash is a repo and one without is an org or user. The config
+        keys say which they are, so a malformed one is an error rather than a
+        silently wider search.
         """
-        repos = self.config_list("repos")
         if containers:
-            names = containers
-        elif repos:
-            names = repos
-        elif self.config.get("repo"):
-            names = (str(self.config["repo"]),)
-        elif self.config.get("org"):
-            names = (str(self.config["org"]),)
-        else:
-            names = ()
-        return [f"repo:{name}" if "/" in name else f"org:{name}" for name in names]
+            return [
+                f"repo:{name}" if "/" in name else f"org:{name}" for name in containers
+            ]
+        repos = self.config_list("repos") or self.config_list("repo")
+        if repos:
+            bad = [name for name in repos if "/" not in name]
+            if bad:
+                raise ProviderError(
+                    f"Source '{self.source}': '{bad[0]}' is not a repository. "
+                    "Write it as owner/repo, or use org for a whole account."
+                )
+            return [f"repo:{name}" for name in repos]
+        org = self.config.get("org")
+        if org:
+            if "/" in str(org):
+                raise ProviderError(
+                    f"Source '{self.source}': org '{org}' should be an owner "
+                    "only. Use repo or repos for owner/repo."
+                )
+            return [f"org:{org}"]
+        return []
 
     def _ticket(self, issue: dict, comments: tuple[Comment, ...] = ()) -> Ticket:
         # Search results carry no "repository" object, only its API URL.
