@@ -68,13 +68,12 @@ class GitHubProvider(HttpProvider):
         return str(repo), int(match["number"])
 
     def _repo(self, container: str) -> str:
-        """The one repository ``create`` files into."""
-        repos = self.config_list("repos")
-        repo = (
-            container
-            or self.config.get("repo")
-            or (repos[0] if len(repos) == 1 else "")
-        )
+        """The one repository ``create`` files into.
+
+        The same precedence as ``list``: ``repos``, when set, outranks ``repo``.
+        """
+        repos = self.config_list("repos") or self.config_list("repo")
+        repo = container or (repos[0] if len(repos) == 1 else "")
         if not repo or "/" not in str(repo):
             choices = f" Choose from: {', '.join(repos)}." if len(repos) > 1 else ""
             raise ProviderError(

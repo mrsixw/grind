@@ -243,12 +243,9 @@ class JiraProvider(HttpProvider):
         return {"accountId": matches[0]["accountId"]}
 
     def create_ticket(self, draft: TicketDraft) -> Ticket:
-        projects = self.config_list("projects")
-        project = (
-            draft.container
-            or self.config.get("project")
-            or (projects[0] if len(projects) == 1 else "")
-        )
+        # The same precedence as list: projects, when set, outranks project.
+        projects = self.config_list("projects") or self.config_list("project")
+        project = draft.container or (projects[0] if len(projects) == 1 else "")
         if not project:
             choices = (
                 f" Choose from: {', '.join(projects)}." if len(projects) > 1 else ""

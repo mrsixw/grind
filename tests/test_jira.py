@@ -354,6 +354,33 @@ def test_create_uses_the_only_project_in_a_group(monkeypatch, requests_mock):
     }
 
 
+@pytest.mark.parametrize(
+    ("config", "container", "expected"),
+    [
+        ({"project": "PROJ", "projects": ["OPS"]}, "", "OPS"),
+        ({"project": "PROJ", "projects": ["OPS", "ADM"]}, "WEB", "WEB"),
+        ({"project": "PROJ"}, "", "PROJ"),
+    ],
+)
+def test_create_follows_the_same_precedence_as_list(
+    monkeypatch, requests_mock, config, container, expected
+):
+    requests_mock.post(f"{V3}/issue", json={"key": f"{expected}-1"})
+    requests_mock.get(f"{V3}/issue/{expected}-1", json=raw_issue(f"{expected}-1"))
+    jira(monkeypatch, **config).create_ticket(
+        TicketDraft(title="t", container=container)
+    )
+    assert requests_mock.request_history[0].json()["fields"]["project"] == {
+        "key": expected
+    }
+
+
+def test_create_asks_when_projects_outranks_project(monkeypatch, requests_mock):
+    provider = jira(monkeypatch, project="PROJ", projects=["OPS", "ADM"])
+    with pytest.raises(ProviderError, match="Choose from: OPS, ADM"):
+        provider.create_ticket(TicketDraft(title="t"))
+
+
 def test_create_in_a_group_of_projects_asks_which(monkeypatch, requests_mock):
     provider = jira(monkeypatch, projects=["PROJ", "OPS"])
     with pytest.raises(ProviderError, match="Choose from: PROJ, OPS"):

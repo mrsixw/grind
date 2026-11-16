@@ -155,13 +155,15 @@ A GitHub source's `list` is narrowed by the most specific scope it has:
 so `--in owner/x` on an `org` source lists only `owner/x`. `org` works for a
 personal account as well as an organisation. Whatever the scope, it is a single
 search, so a group of repos costs no extra requests. `create` always needs
-exactly one repository: `--in owner/repo`, `repo`, or a `repos` list of one.
+exactly one repository, chosen in the same order: `--in owner/repo`, then
+`repos` when it holds just one, then `repo`. A `repos` group of several makes
+it ask.
 
 A JIRA source's `list` works the same way: `--in`, then `projects` or
 `project`, with each replacing the one below. Several projects are searched
 together as `project in (...)`, and the source's `jql` always still applies.
-`create` uses `--in`, `project`, or a `projects` list of one, and otherwise
-asks, listing the group's projects.
+`create` picks in the same order: `--in`, then `projects` when it holds just
+one, then `project`. A group of several makes it ask, listing the projects.
 
 `mine` works on any source and defaults to `true`. `--mine` and `--everyone`
 override it for one run.
