@@ -25,7 +25,11 @@ Exits 1 if any source failed, after printing what the others returned.
 
 ### `show REF [--comments] [--format table|json]`
 
-Show one ticket, optionally with its comments.
+Show one ticket, optionally with its comments. Field names are bold, in the
+theme's label colour, and their values are in its value colour: a pair that
+contrasts a little, so the eye can find a field fast. On a holiday the
+seasonal colour takes over. Where it cycles (December, Pride, Holi), labels and
+values get neighbouring colours; otherwise the bold keeps them apart.
 
 ### `create`
 
@@ -142,11 +146,11 @@ Set the terminal colour theme. Choices: `default`, `dark`, `light`, `mono`, `rai
 
 | Theme | Look |
 | ----- | ---- |
-| `default` | Coffee: mocha rows, caramel headers, latte progress, matcha for success, honey for warnings, coffee-cherry red for errors |
-| `dark` | Bright blue and magenta, for dark terminals |
-| `light` | Blue and green, for light terminals |
+| `default` | Coffee: mocha rows, caramel headers and field names, latte values and progress, matcha for success, honey for warnings, coffee-cherry red for errors |
+| `dark` | Bright blue and magenta, with bright white values, for dark terminals |
+| `light` | Blue and green, with black values, for light terminals |
 | `mono` | No colour at all |
-| `rainbow` | The Pride colours, one per row |
+| `rainbow` | The Pride colours, one per row; magenta field names over cyan values |
 
 The coffee browns are 256-colour shades picked to read on dark and light
 backgrounds alike. A terminal limited to 16 colours shows its nearest match.
