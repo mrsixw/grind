@@ -17,7 +17,7 @@ List tickets across your sources. The default when no subcommand is given.
 | `--mine` / `--everyone` | Tickets assigned to you, or to anyone. Default: mine, unless the source sets `mine = false`. `--all` still works as an alias for `--everyone` |
 | `--state open\|closed\|all` | Which tickets to include. Default: `open` |
 | `-q`, `--query TEXT` | Free-text search |
-| `--in PROJECT` | Project, repository (`owner/repo`) or GitHub org (`owner`), overriding the source's scope. Repeatable: values are ORed. JIRA takes one, for now |
+| `--in PROJECT` | Project, repository (`owner/repo`) or GitHub org (`owner`), overriding the source's scope. Repeatable: values are ORed |
 | `--limit N` | Most tickets to fetch per source. Config key: `limit = 50` |
 | `--format table\|json` | Output format. Config key: `format = "table"` |
 
@@ -143,6 +143,7 @@ url = "https://example.atlassian.net"
 user = "you@example.com"         # omit for a Server/Data Center PAT
 token-env = "JIRA_TOKEN"         # default: JIRA_TOKEN, then JIRA_API_TOKEN
 project = "PROJ"                 # optional default project
+# projects = ["PROJ", "OPS"]     # or a group of projects
 default-type = "Task"            # issue type used by create
 jql = "labels = backend"         # optional extra filter for list
 api-version = 3                  # 2 for Server / Data Center
@@ -155,6 +156,12 @@ so `--in owner/x` on an `org` source lists only `owner/x`. `org` works for a
 personal account as well as an organisation. Whatever the scope, it is a single
 search, so a group of repos costs no extra requests. `create` always needs
 exactly one repository: `--in owner/repo`, `repo`, or a `repos` list of one.
+
+A JIRA source's `list` works the same way: `--in`, then `projects` or
+`project`, with each replacing the one below. Several projects are searched
+together as `project in (...)`, and the source's `jql` always still applies.
+`create` uses `--in`, `project`, or a `projects` list of one, and otherwise
+asks, listing the group's projects.
 
 `mine` works on any source and defaults to `true`. `--mine` and `--everyone`
 override it for one run.

@@ -129,6 +129,7 @@ _DEFAULT_CONFIG_CONTENT = """\
 #   user = "you@example.com"         # omit for a Server/Data Center PAT
 #   token-env = "JIRA_TOKEN"         # default: JIRA_TOKEN, then JIRA_API_TOKEN
 #   project = "PROJ"                 # optional default project
+#   projects = ["PROJ", "OPS"]       # or a group of projects
 #   default-type = "Task"            # issue type used by create
 #   jql = "labels = backend"         # optional extra filter for list
 #   api-version = 3                  # 2 for Server / Data Center
