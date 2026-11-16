@@ -5,13 +5,14 @@ against a plugin are in ``test_plugin_cli.py``.
 """
 
 import json
+import unicodedata
 
 import pytest
 from click.testing import CliRunner
 from freezegun import freeze_time
 from wcwidth import wcswidth
 
-from grind.cli import main
+from grind.cli import FACT_EMOJI, main
 from grind.constants import TABLE_STYLES
 from grind.jira import text_to_adf
 
@@ -308,9 +309,32 @@ def test_show_renders_the_ticket(grind, requests_mock):
 def test_show_aligns_its_values_in_plain_output(grind, requests_mock):
     requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
     lines = grind("show", "oss:#7").stdout.splitlines()
-    assert "  Status:   open" in lines
-    assert "  Reporter: grace" in lines
+    assert "  🚦 Status:   open" in lines
+    assert "  📣 Reporter: grace" in lines
     assert "\x1b[" not in "\n".join(lines)
+
+
+def test_show_puts_an_emoji_on_every_field_and_keeps_values_aligned(
+    grind, requests_mock
+):
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+    lines = grind("show", "oss:#7").stdout.splitlines()
+    # The title line, then one line per field: gh_issue() fills all of them.
+    fields = lines[1 : 1 + len(FACT_EMOJI)]
+    assert [line.split()[0] for line in fields] == list(FACT_EMOJI.values())
+    # Measured in terminal cells, every value starts in the same column.
+    value_columns = {
+        wcswidth(line) - wcswidth(line.split(":", 1)[1].lstrip()) for line in fields
+    }
+    assert len(value_columns) == 1
+
+
+@pytest.mark.parametrize("name", FACT_EMOJI)
+def test_every_field_emoji_is_two_cells_wide(name):
+    icon = FACT_EMOJI[name]
+    assert len(icon) == 1
+    assert unicodedata.east_asian_width(icon) == "W"
+    assert wcswidth(icon) == 2
 
 
 @pytest.mark.parametrize(
@@ -327,7 +351,7 @@ def test_show_colours_labels_and_values_from_the_theme(
     result = run_in_colour(tmp_path, monkeypatch, "--theme", theme, "show", "oss:#7")
     assert result.exit_code == 0, result.output
     status = next(line for line in result.stdout.splitlines() if "Status:" in line)
-    assert status.startswith(f"  \x1b[1m{label}Status:")
+    assert status.startswith(f"  🚦 \x1b[1m{label}Status:")
     assert f"{value}open" in status
 
 
