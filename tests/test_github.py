@@ -127,6 +127,22 @@ def test_list_everyone_across_an_org(monkeypatch, requests_mock):
     assert requests_mock.call_count == 1
 
 
+@pytest.mark.parametrize(
+    ("config", "message"),
+    [
+        ({"repo": "acme"}, "'acme' is not a repository"),
+        ({"repos": ["acme/milk", "acme"]}, "'acme' is not a repository"),
+        ({"org": "acme/milk"}, "should be an owner only"),
+    ],
+)
+def test_a_malformed_configured_scope_fails_instead_of_widening(
+    monkeypatch, requests_mock, config, message
+):
+    with pytest.raises(ProviderError, match=message):
+        scoped(monkeypatch, **config).list_tickets(ListQuery())
+    assert requests_mock.call_count == 0
+
+
 def test_a_repos_value_that_is_not_a_list_of_names_is_explained(monkeypatch):
     with pytest.raises(ProviderError, match="'repos' must be a list of names"):
         scoped(monkeypatch, repos=["ok/repo", 3]).list_tickets(ListQuery())
