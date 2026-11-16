@@ -90,6 +90,7 @@ url = "https://kettle.acme.example"
 | `self.error_detail(response)` | Override to pull the API's own error message out of an error body |
 | `self.config` | The source's `[sources.<name>]` table, for your own keys |
 | `self.require("key")` | A config value, or a `ProviderError` naming the missing key |
+| `self.config_list("key")` | A config value as a tuple of strings (a lone string counts as one), empty when unset, or a `ProviderError` naming the key |
 | `self.session` | The `requests.Session`, for default headers |
 | `default_url` | Class attribute: the URL used when the source sets none |
 
@@ -111,8 +112,11 @@ Only the first two are required.
 | `assign(key, assignee) -> Ticket` | `assign` — `assignee` is a name, `tickets.ME`, or `None` to unassign |
 | `transition(key, status) -> Ticket` | `move` |
 
-The dataclasses live in `grind.tickets`. In a `ListQuery`, `container` is
-whatever your system files tickets under — a project, a board, a queue.
+The dataclasses live in `grind.tickets`. In a `ListQuery`, `containers` is a
+tuple of whatever your system files tickets under (projects, boards, queues),
+one per `--in`, to be ORed together. Empty means "use the source's own scope".
+A system that can only search one at a time should raise `ProviderError` for
+more than one rather than silently picking the first.
 
 ## Rules of the road
 

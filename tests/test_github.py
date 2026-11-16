@@ -1,5 +1,7 @@
 """The GitHub provider, with HTTP faked at the requests boundary."""
 
+from urllib.parse import parse_qs, urlsplit
+
 import pytest
 
 from grind.github import GitHubProvider
@@ -72,8 +74,62 @@ def test_list_builds_a_search_and_maps_the_tickets(gh, requests_mock):
 
 def test_list_all_states_for_anyone_in_another_repo(gh, requests_mock):
     requests_mock.get(f"{API}/search/issues", json={"items": []})
-    gh.list_tickets(ListQuery(mine=False, state="all", container="acme/milk"))
+    gh.list_tickets(ListQuery(mine=False, state="all", containers=("acme/milk",)))
     assert requests_mock.last_request.qs["q"] == ["is:issue repo:acme/milk"]
+
+
+def scoped(monkeypatch, **config):
+    monkeypatch.setenv("GH_TOKEN", "tok")
+    return GitHubProvider("oss", {"provider": "github", **config})
+
+
+def sent_query(requests_mock):
+    """The search query as sent, unlowered (requests-mock lowercases ``qs``)."""
+    return parse_qs(urlsplit(requests_mock.last_request.url).query)["q"][0]
+
+
+@pytest.mark.parametrize(
+    ("config", "containers", "expected"),
+    [
+        ({"org": "mrsixw"}, (), "org:mrsixw"),
+        (
+            {"repos": ["mrsixw/grind", "mrsixw/breakfast"]},
+            (),
+            "repo:mrsixw/grind repo:mrsixw/breakfast",
+        ),
+        ({"repos": "mrsixw/grind"}, (), "repo:mrsixw/grind"),
+        # Most specific wins, and replaces everything below it.
+        ({"org": "mrsixw", "repo": "mrsixw/grind"}, (), "repo:mrsixw/grind"),
+        ({"repo": "acme/beans", "repos": ["acme/milk"]}, (), "repo:acme/milk"),
+        ({"org": "mrsixw", "repos": ["mrsixw/grind"]}, ("acme",), "org:acme"),
+        (
+            {"org": "mrsixw"},
+            ("acme/milk", "acme/beans"),
+            "repo:acme/milk repo:acme/beans",
+        ),
+        ({}, ("acme", "mrsixw/grind"), "org:acme repo:mrsixw/grind"),
+    ],
+)
+def test_list_scope_precedence(
+    monkeypatch, requests_mock, config, containers, expected
+):
+    requests_mock.get(f"{API}/search/issues", json={"items": []})
+    scoped(monkeypatch, **config).list_tickets(
+        ListQuery(mine=False, containers=containers)
+    )
+    assert sent_query(requests_mock) == f"is:issue {expected} state:open"
+
+
+def test_list_everyone_across_an_org(monkeypatch, requests_mock):
+    requests_mock.get(f"{API}/search/issues", json={"items": [issue()]})
+    (ticket,) = scoped(monkeypatch, org="mrsixw").list_tickets(ListQuery(mine=False))
+    assert ticket.ref == "oss:acme/beans#7"
+    assert requests_mock.call_count == 1
+
+
+def test_a_repos_value_that_is_not_a_list_of_names_is_explained(monkeypatch):
+    with pytest.raises(ProviderError, match="'repos' must be a list of names"):
+        scoped(monkeypatch, repos=["ok/repo", 3]).list_tickets(ListQuery())
 
 
 def test_list_mine_needs_no_repo(gh_norepo, requests_mock):
@@ -196,6 +252,26 @@ def test_create_in_another_repo(gh, requests_mock):
     requests_mock.post(f"{API}/repos/acme/milk/issues", json=issue(1))
     gh.create_ticket(TicketDraft(title="t", container="acme/milk"))
     assert requests_mock.last_request.json() == {"title": "t", "body": ""}
+
+
+def test_create_uses_the_only_repo_in_a_group(monkeypatch, requests_mock):
+    requests_mock.post(f"{API}/repos/acme/milk/issues", json=issue(1))
+    scoped(monkeypatch, repos=["acme/milk"]).create_ticket(TicketDraft(title="t"))
+    assert requests_mock.called
+
+
+def test_create_in_a_group_of_repos_asks_which_and_lists_them(monkeypatch):
+    provider = scoped(monkeypatch, repos=["acme/milk", "acme/beans"])
+    with pytest.raises(ProviderError, match="Choose from: acme/milk, acme/beans"):
+        provider.create_ticket(TicketDraft(title="t"))
+
+
+@pytest.mark.parametrize("config", [{"org": "mrsixw"}, {}])
+def test_create_needs_a_whole_repo_not_an_org(monkeypatch, requests_mock, config):
+    provider = scoped(monkeypatch, **config)
+    with pytest.raises(ProviderError, match="Pass --in owner/repo"):
+        provider.create_ticket(TicketDraft(title="t", container="mrsixw"))
+    assert requests_mock.call_count == 0
 
 
 def test_create_without_a_repo_is_explained(gh_norepo):
