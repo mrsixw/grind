@@ -76,6 +76,24 @@ class Provider(ABC):
             f"support {what}."
         )
 
+    def config_list(self, key: str) -> tuple[str, ...]:
+        """Return config value *key* as a tuple of strings, empty when unset.
+
+        A single string is accepted as a one-item list, so ``repos = "a/b"``
+        is not a trap. Anything else is a ProviderError naming the key.
+        """
+        value = self.config.get(key, ())
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, (list, tuple)) or not all(
+            isinstance(item, str) and item for item in value
+        ):
+            raise ProviderError(
+                f"Source '{self.source}': '{key}' must be a list of names, "
+                f'like {key} = ["a", "b"].'
+            )
+        return tuple(value)
+
     def require(self, key: str) -> str:
         """Return config value *key*, or raise a ProviderError naming it."""
         value = self.config.get(key)

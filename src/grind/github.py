@@ -2,6 +2,11 @@
 
 Keys are ``owner/repo#123``. With ``repo`` set on the source, ``#123`` or a
 bare ``123`` is enough.
+
+``list`` can be scoped to one repo (``repo``), a group of repos (``repos``) or
+everything an org or user owns (``org``). Each is one search: GitHub ORs
+repeated ``repo:`` and ``org:`` qualifiers, and ``org:`` matches personal
+accounts as well as organisations.
 """
 
 import re
@@ -63,13 +68,40 @@ class GitHubProvider(HttpProvider):
         return str(repo), int(match["number"])
 
     def _repo(self, container: str) -> str:
-        repo = container or self.config.get("repo")
-        if not repo:
+        """The one repository ``create`` files into."""
+        repos = self.config_list("repos")
+        repo = (
+            container
+            or self.config.get("repo")
+            or (repos[0] if len(repos) == 1 else "")
+        )
+        if not repo or "/" not in str(repo):
+            choices = f" Choose from: {', '.join(repos)}." if len(repos) > 1 else ""
             raise ProviderError(
                 f"Which repository? Pass --in owner/repo, or set 'repo' on "
-                f"source '{self.source}'."
+                f"source '{self.source}'.{choices}"
             )
         return str(repo)
+
+    def _scope(self, containers: tuple[str, ...]) -> list[str]:
+        """The search qualifiers that narrow ``list`` to repos or orgs.
+
+        Most specific wins, and each level replaces the ones below it:
+        ``--in``, then ``repos`` or ``repo``, then ``org``. An ``--in`` value
+        with a slash is a repo, and one without is an org or user.
+        """
+        repos = self.config_list("repos")
+        if containers:
+            names = containers
+        elif repos:
+            names = repos
+        elif self.config.get("repo"):
+            names = (str(self.config["repo"]),)
+        elif self.config.get("org"):
+            names = (str(self.config["org"]),)
+        else:
+            names = ()
+        return [f"repo:{name}" if "/" in name else f"org:{name}" for name in names]
 
     def _ticket(self, issue: dict, comments: tuple[Comment, ...] = ()) -> Ticket:
         # Search results carry no "repository" object, only its API URL.
@@ -101,15 +133,14 @@ class GitHubProvider(HttpProvider):
         return self.request("GET", "/user").json()["login"]
 
     def list_tickets(self, query: ListQuery) -> list[Ticket]:
-        repo = query.container or self.config.get("repo")
-        if not repo and not query.mine:
+        scope = self._scope(query.containers)
+        if not scope and not query.mine:
             raise ProviderError(
-                f"Listing everyone's issues needs a repository: pass --in "
-                f"owner/repo, or set 'repo' on source '{self.source}'."
+                f"Listing everyone's issues needs a repository or an org: pass "
+                f"--in owner/repo or --in org, or set 'repo', 'repos' or 'org' "
+                f"on source '{self.source}'."
             )
-        terms = ["is:issue"]
-        if repo:
-            terms.append(f"repo:{repo}")
+        terms = ["is:issue", *scope]
         if query.mine:
             terms.append("assignee:@me")
         if query.state != "all":

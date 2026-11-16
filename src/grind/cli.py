@@ -689,8 +689,8 @@ def _describe_scope(query: ListQuery, mine_by_source: dict[str, bool]) -> str:
     if everyones:
         parts.append(f"for everyone in {', '.join(everyones)}")
     line = f"Grinding through {_STATE_NOUNS[query.state]} {'; '.join(parts)}"
-    if query.container:
-        line += f", within {query.container}"
+    if query.containers:
+        line += f", within {', '.join(query.containers)}"
     if query.text:
         line += f', matching "{query.text}"'
     return line + "..."
@@ -750,10 +750,13 @@ def _cached_list(
 @click.option("-q", "--query", "text", default="", help="Free-text search.")
 @click.option(
     "--in",
-    "container",
-    default="",
+    "containers",
+    multiple=True,
     metavar="PROJECT",
-    help="Project or repository to look in, overriding the source's default.",
+    help=(
+        "Project, repository (owner/repo) or GitHub org to look in, overriding "
+        "the source's scope. Repeatable."
+    ),
 )
 @click.option(
     "--limit",
@@ -776,7 +779,7 @@ def list_tickets(
     everyone=False,
     state="open",
     text="",
-    container="",
+    containers=(),
     limit=None,
     output_format=None,
 ):
@@ -789,7 +792,7 @@ def list_tickets(
         state=state,
         text=text,
         limit=resolve_option(limit, settings.cfg, "limit", _DEFAULT_LIMIT),
-        container=container,
+        containers=tuple(containers),
     )
     # The flag decides for every source; without it, each source's own default.
     mine_by_source = {

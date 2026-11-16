@@ -118,6 +118,8 @@ _DEFAULT_CONFIG_CONTENT = """\
 # [sources.oss]
 #   provider = "github"
 #   repo = "owner/repo"              # optional default repository
+#   repos = ["owner/a", "owner/b"]   # or a group of repositories
+#   org = "owner"                    # or every repo an org or user owns
 #   token-env = "GITHUB_TOKEN"       # default: GH_TOKEN, then GITHUB_TOKEN
 #   url = "https://api.github.com"   # change for GitHub Enterprise
 

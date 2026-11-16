@@ -296,6 +296,16 @@ def test_the_scope_line_names_the_state_container_and_search(grind, both):
     assert "Grinding" not in result.stdout
 
 
+def test_list_in_is_repeatable_and_ors_the_repos(grind, both):
+    result = grind("list", "-s", "oss", "--in", "acme/milk", "--in", "mrsixw")
+    assert result.exit_code == 0, result.output
+    github_q = both.last_request.url
+    assert parse_qs(urlsplit(github_q).query)["q"][0] == (
+        "is:issue repo:acme/milk org:mrsixw assignee:@me state:open"
+    )
+    assert "within acme/milk, mrsixw" in result.stderr
+
+
 def test_list_empty_says_so_on_stderr_and_leaves_stdout_empty(grind, requests_mock):
     requests_mock.get(f"{GH}/search/issues", json={"items": []})
     result = grind("list", "-s", "oss")
