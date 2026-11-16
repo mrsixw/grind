@@ -17,6 +17,8 @@ from grind.jira import text_to_adf
 
 GH = "https://api.github.com"
 JIRA = "https://acme.atlassian.net/rest/api/3"
+#: A date no seasonal calendar marks, so the theme alone decides the colours.
+PLAIN_DAY = "2026-11-15"
 
 CONFIG = """
 [sources.oss]
@@ -303,6 +305,32 @@ def test_show_renders_the_ticket(grind, requests_mock):
     assert "It is furring up." in result.stdout
 
 
+def test_show_aligns_its_values_in_plain_output(grind, requests_mock):
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+    lines = grind("show", "oss:#7").stdout.splitlines()
+    assert "  Status:   open" in lines
+    assert "  Reporter: grace" in lines
+    assert "\x1b[" not in "\n".join(lines)
+
+
+@pytest.mark.parametrize(
+    ("theme", "label", "value"),
+    [
+        ("default", "\x1b[38;5;173m", "\x1b[38;5;180m"),  # caramel, latte
+        ("dark", "\x1b[95m", "\x1b[97m"),  # bright magenta, bright white
+    ],
+)
+def test_show_colours_labels_and_values_from_the_theme(
+    tmp_path, monkeypatch, requests_mock, theme, label, value
+):
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+    result = run_in_colour(tmp_path, monkeypatch, "--theme", theme, "show", "oss:#7")
+    assert result.exit_code == 0, result.output
+    status = next(line for line in result.stdout.splitlines() if "Status:" in line)
+    assert status.startswith(f"  \x1b[1m{label}Status:")
+    assert f"{value}open" in status
+
+
 def test_show_comments_and_json(grind, requests_mock):
     with_comment = jira_issue(
         comment={
@@ -503,19 +531,24 @@ def test_a_bad_source_config_is_a_clean_error(grind):
     assert "Unknown provider 'trello'" in result.stderr
 
 
-@pytest.mark.usefixtures("both")
-def test_list_is_coffee_coloured_by_default(tmp_path, monkeypatch):
-    """The table, its header and the progress line all wear the coffee theme."""
+def run_in_colour(tmp_path, monkeypatch, *args):
+    """Invoke grind with colour on, on a day no seasonal calendar marks."""
     monkeypatch.setenv("GH_TOKEN", "gh-tok")
     monkeypatch.setenv("JIRA_TOKEN", "jira-tok")
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.delenv("GRIND_NO_COLOUR", raising=False)
     cfg = tmp_path / "config.toml"
     cfg.write_text(CONFIG)
-    with freeze_time("2026-11-15"):
-        result = CliRunner().invoke(
-            main, ["--config", str(cfg), "--no-update-check", "list"], color=True
+    with freeze_time(PLAIN_DAY):
+        return CliRunner().invoke(
+            main, ["--config", str(cfg), "--no-update-check", *args], color=True
         )
+
+
+@pytest.mark.usefixtures("both")
+def test_list_is_coffee_coloured_by_default(tmp_path, monkeypatch):
+    """The table, its header and the progress line all wear the coffee theme."""
+    result = run_in_colour(tmp_path, monkeypatch, "list")
     assert result.exit_code == 0, result.output
     top, header, rule, *rows, bottom = result.stdout.splitlines()
     for border in (top, rule, bottom):
