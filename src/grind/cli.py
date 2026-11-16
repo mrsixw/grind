@@ -45,6 +45,13 @@ from .constants import (
     SECTION_STYLES,
     TABLE_STYLES,
 )
+from .contexts import (
+    ContextError,
+    apply_context,
+    load_contexts,
+    read_active_context,
+    write_active_context,
+)
 from .logger import configure as configure_logging
 from .providers import (
     Provider,
@@ -120,6 +127,18 @@ def resolve_option(flag_value, cfg: dict, key: str, default):
     default=None,
     metavar="PATH",
     help="Path to a TOML config file.",
+)
+@click.option(
+    "-C",
+    "--context",
+    "context_name",
+    default=None,
+    metavar="NAME",
+    envvar=f"{ENVVAR_PREFIX}_CONTEXT",
+    help=(
+        "Working context for this run, overriding the one chosen with "
+        f"`{BINARY_NAME} context use`. Also {ENVVAR_PREFIX}_CONTEXT."
+    ),
 )
 # ── Display ─────────────────────────────────────────────────────────────────
 @click.option(
@@ -238,6 +257,7 @@ def resolve_option(flag_value, cfg: dict, key: str, default):
 def main(
     ctx,
     config_path,
+    context_name,
     theme,
     seasonal_colours,
     seasonal_calendar,
@@ -296,6 +316,8 @@ def main(
             resolve_option(section_style, cfg, "section-style", DEFAULT_SECTION_STYLE),
             SECTION_STYLES,
         )
+        contexts = load_contexts(cfg)
+        context = _choose_context(contexts, context_name)
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
 
@@ -316,6 +338,8 @@ def main(
         section_style=layout,
         emoji=resolve_option(emoji, cfg, "emoji", True),
         progress=resolve_option(progress, cfg, "progress", True),
+        contexts=contexts,
+        context=context,
         cache_enabled=resolve_option(cache_enabled, cfg, "cache", False),
         cache_ttl=ttl,
         update_check=not (no_update_check or cfg.get("no-update-check", False)),
@@ -352,6 +376,36 @@ def _warn_misplaced_settings(settings: Settings) -> None:
             err=True,
             color=settings.colour,
         )
+
+
+def _choose_context(contexts: dict, flagged: str | None):
+    """Return the context in force: the flag or env var, else the stored one.
+
+    A name the user typed and got wrong is an error. A stored name that has
+    since left the config is only a warning: it must not lock the user out of
+    ``context use`` to pick another.
+    """
+    if flagged:
+        if flagged not in contexts:
+            raise ContextError(_unknown_context(flagged, contexts))
+        return contexts[flagged]
+    stored = read_active_context()
+    if stored is None:
+        return None
+    if stored not in contexts:
+        click.echo(
+            f"⚠️  The active context '{stored}' is no longer in your config, so "
+            f"it is ignored. Pick another with `{BINARY_NAME} context use NAME`, "
+            f"or clear it with `{BINARY_NAME} context use --none`.",
+            err=True,
+        )
+        return None
+    return contexts[stored]
+
+
+def _unknown_context(name: str, contexts: dict) -> str:
+    defined = ", ".join(contexts) or "none defined"
+    return f"Unknown context '{name}'. Defined: {defined}."
 
 
 def _config_choice(key: str, name: str, choices: tuple[str, ...]) -> str:
@@ -549,15 +603,56 @@ def _fail(exc: ProviderError) -> click.ClickException:
     return click.ClickException(str(exc))
 
 
-def _load_sources(settings: Settings) -> dict[str, Provider]:
-    """Build every configured source, or exit with a pointer to the config."""
+def _load_sources(
+    settings: Settings, names: tuple[str, ...] = ()
+) -> dict[str, Provider]:
+    """Build every configured source, or exit with a pointer to the config.
+
+    The active context is laid over its own source, unless *names* (the
+    sources a command was pointed at with ``--source``) leaves that source
+    out: then the context is set aside for this run, and a note says so.
+    """
     try:
         sources = build_sources(settings.cfg)
     except ProviderError as exc:
         raise _fail(exc) from exc
     if not sources:
         raise click.ClickException(_NO_SOURCES)
+    context = settings.context
+    if context is None:
+        return sources
+    if context.source not in sources:
+        raise click.ClickException(
+            f"Context '{context.name}' is for source '{context.source}', which "
+            f"is not configured. Configured: {', '.join(sources)}."
+        )
+    if names and context.source not in names:
+        click.echo(
+            settings.theme.apply(
+                f"Context '{context.name}' is for source '{context.source}', so "
+                f"it is set aside: {', '.join(names)} use their own config.",
+                role="muted",
+            ),
+            err=True,
+            color=settings.colour,
+        )
+        return sources
+    base = sources[context.source]
+    try:
+        merged = apply_context(context, base.config, base.scope_keys)
+        sources[context.source] = type(base)(context.source, merged)
+    except (ContextError, ProviderError) as exc:
+        raise click.ClickException(str(exc)) from exc
     return sources
+
+
+def _in_scope(settings: Settings, names: tuple[str, ...]) -> dict[str, Provider]:
+    """The sources a listing covers: the ones named, else the context's own,
+    else every source."""
+    sources = _load_sources(settings, names)
+    if not names and settings.context is not None:
+        names = (settings.context.source,)
+    return _pick_sources(sources, names)
 
 
 def _pick_sources(
@@ -571,7 +666,11 @@ def _pick_sources(
     return {name: sources[name] for name in names} if names else sources
 
 
-def _one_source(sources: dict[str, Provider], name: str | None) -> Provider:
+def _one_source(
+    sources: dict[str, Provider], name: str | None, settings: Settings
+) -> Provider:
+    if not name and settings.context is not None:
+        name = settings.context.source
     if name:
         return next(iter(_pick_sources(sources, (name,)).values()))
     if len(sources) == 1:
@@ -799,7 +898,9 @@ def _source_mine(provider: Provider) -> bool:
     return mine
 
 
-def _describe_scope(query: ListQuery, mine_by_source: dict[str, bool]) -> str:
+def _describe_scope(
+    query: ListQuery, mine_by_source: dict[str, bool], context=None
+) -> str:
     """Say what ``list`` is about to show, so a filtered list never looks
     like the whole story: whose tickets, in which state, from where.
     """
@@ -815,6 +916,8 @@ def _describe_scope(query: ListQuery, mine_by_source: dict[str, bool]) -> str:
         line += f", within {', '.join(query.containers)}"
     if query.text:
         line += f', matching "{query.text}"'
+    if context is not None and context.source in mine_by_source:
+        line += f" (context {context.name})"
     return line + "..."
 
 
@@ -907,7 +1010,7 @@ def list_tickets(
 ):
     """List tickets across your sources (the default command)."""
     output_format = _format(settings, output_format)
-    sources = _pick_sources(_load_sources(settings), tuple(source_names))
+    sources = _in_scope(settings, tuple(source_names))
     if everyone:
         mine = False
     query = ListQuery(
@@ -921,7 +1024,7 @@ def list_tickets(
         name: mine if mine is not None else _source_mine(provider)
         for name, provider in sources.items()
     }
-    _progress(settings, _describe_scope(query, mine_by_source))
+    _progress(settings, _describe_scope(query, mine_by_source, settings.context))
 
     tickets: list[Ticket] = []
     failed = False
@@ -1035,8 +1138,8 @@ def create(
     container,
 ):
     """Create a ticket. Prints the new ticket's reference on stdout."""
-    sources = _load_sources(settings)
-    provider = _one_source(sources, source_name)
+    sources = _load_sources(settings, (source_name,) if source_name else ())
+    provider = _one_source(sources, source_name, settings)
     draft = TicketDraft(
         title=title,
         body=_read_body(body, body_file) or "",
@@ -1190,6 +1293,88 @@ def list_sources(settings: Settings, check: bool, show_plugin_dir: bool):
     finish_run(settings, item_count=len(rows), extra=_request_rows(sources))
     if failed:
         raise SystemExit(1)
+
+
+# ── Working contexts ────────────────────────────────────────────────────────
+
+#: Marks the active context in ``context list``.
+_ACTIVE_MARK = "☕"
+
+
+@main.group("context", invoke_without_command=True)
+@click.pass_context
+def context_group(ctx):
+    """Show, list or switch the working context.
+
+    A context narrows one source: an org, a repo or group of repos, a project
+    or group of projects, and whether you see only your own tickets. Define
+    them as [contexts.<name>] tables in the config file.
+    """
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(context_show)
+
+
+@context_group.command("show")
+@click.pass_obj
+def context_show(settings: Settings):
+    """Print the context in force and what it narrows."""
+    context = settings.context
+    if context is None:
+        click.echo(
+            "No context is active, so every source lists as configured.", err=True
+        )
+        return
+    click.echo(f"{context.name}  ({context.describe()})")
+
+
+@context_group.command("list")
+@click.pass_obj
+def context_list(settings: Settings):
+    """List the contexts defined in the config, marking the active one."""
+    if not settings.contexts:
+        click.echo(
+            "No contexts defined. Add a [contexts.<name>] table to the config.",
+            err=True,
+        )
+        return
+    active = settings.context.name if settings.context else None
+    rows = [
+        [_ACTIVE_MARK if name == active else "", name, context.describe()]
+        for name, context in settings.contexts.items()
+    ]
+    click.echo(_render_table(settings, ["", "CONTEXT", "NARROWS"], rows))
+
+
+@context_group.command("use")
+@click.argument("name", required=False)
+@click.option("--none", "clear", is_flag=True, help="Clear the active context.")
+@click.pass_obj
+def context_use(settings: Settings, name: str | None, clear: bool):
+    """Make NAME the working context for every run from now on."""
+    if clear == bool(name):
+        raise click.UsageError("Pass a context NAME or --none, not both or neither.")
+    if clear:
+        write_active_context(None)
+        click.echo(
+            settings.theme.apply("Context cleared.", role="success"),
+            err=True,
+            color=settings.colour,
+        )
+        return
+    if name not in settings.contexts:
+        raise click.ClickException(_unknown_context(name, settings.contexts))
+    context = settings.contexts[name]
+    # Build the sources with it applied, so a context that cannot work is
+    # refused now rather than on the next list.
+    _load_sources(replace(settings, context=context))
+    write_active_context(name)
+    click.echo(
+        settings.theme.apply(
+            f"☕ Now working in '{name}' ({context.describe()}).", role="success"
+        ),
+        err=True,
+        color=settings.colour,
+    )
 
 
 # ── Config management ───────────────────────────────────────────────────────
