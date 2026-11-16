@@ -173,7 +173,8 @@ class JiraProvider(HttpProvider):
             # Cloud refuses unbounded searches; say so before it does.
             raise ProviderError(
                 f"That would list every ticket on source '{self.source}'. "
-                "Narrow it with --mine, --in PROJECT, --state or --query."
+                "Narrow it with --mine, --in PROJECT, --state or --query, or set "
+                "'project' or 'jql' on the source."
             )
         tickets: list[Ticket] = []
         cursor: dict = {}

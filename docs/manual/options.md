@@ -14,7 +14,7 @@ List tickets across your sources. The default when no subcommand is given.
 | Option | Meaning |
 | ------ | ------- |
 | `-s`, `--source NAME` | Only this source. Repeatable. Default: every source |
-| `--mine` / `--all` | Tickets assigned to you (default), or to anyone |
+| `--mine` / `--everyone` | Tickets assigned to you, or to anyone. Default: mine, unless the source sets `mine = false`. `--all` still works as an alias for `--everyone` |
 | `--state open\|closed\|all` | Which tickets to include. Default: `open` |
 | `-q`, `--query TEXT` | Free-text search |
 | `--in PROJECT` | Project or repository, overriding the source's default |
@@ -144,7 +144,11 @@ project = "PROJ"                 # optional default project
 default-type = "Task"            # issue type used by create
 jql = "labels = backend"         # optional extra filter for list
 api-version = 3                  # 2 for Server / Data Center
+mine = false                     # list everyone's tickets by default
 ```
+
+`mine` works on any source and defaults to `true`. `--mine` and `--everyone`
+override it for one run.
 
 `token-env` names an environment variable. The token itself never goes in the
 config file, so the file is always safe to commit or paste into a bug report.

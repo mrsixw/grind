@@ -18,7 +18,7 @@ import random
 import shutil
 import sys
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from enum import StrEnum, auto
 
 import click
@@ -414,6 +414,10 @@ def finish_run(
 # ── Tickets ─────────────────────────────────────────────────────────────────
 
 _FORMATS = ("table", "json")
+#: Most tickets ``list`` fetches per source unless told otherwise.
+_DEFAULT_LIMIT = 50
+#: How the scope line names each ``--state``.
+_STATE_NOUNS = {"open": "open tickets", "closed": "closed tickets", "all": "tickets"}
 #: What shutil assumes when stdout is not a terminal (a pipe, a test runner).
 _FALLBACK_TERMINAL_SIZE = (120, 24)
 #: The narrowest a shrunk column gets, so titles stay readable in a tiny window.
@@ -663,6 +667,35 @@ def _emit_ticket(settings: Settings, ticket: Ticket, output_format: str) -> None
         click.echo(_render_ticket(settings, ticket))
 
 
+def _source_mine(provider: Provider) -> bool:
+    """Whether *provider*'s source lists only your tickets by default."""
+    mine = provider.config.get("mine", True)
+    if not isinstance(mine, bool):
+        raise click.ClickException(
+            f"Source '{provider.source}': mine must be true or false, not '{mine}'."
+        )
+    return mine
+
+
+def _describe_scope(query: ListQuery, mine_by_source: dict[str, bool]) -> str:
+    """Say what ``list`` is about to show, so a filtered list never looks
+    like the whole story: whose tickets, in which state, from where.
+    """
+    yours = [name for name, mine in mine_by_source.items() if mine]
+    everyones = [name for name, mine in mine_by_source.items() if not mine]
+    parts = []
+    if yours:
+        parts.append(f"assigned to you in {', '.join(yours)}")
+    if everyones:
+        parts.append(f"for everyone in {', '.join(everyones)}")
+    line = f"Grinding through {_STATE_NOUNS[query.state]} {'; '.join(parts)}"
+    if query.container:
+        line += f", within {query.container}"
+    if query.text:
+        line += f', matching "{query.text}"'
+    return line + "..."
+
+
 def _cached_list(
     settings: Settings, provider: Provider, query: ListQuery
 ) -> list[Ticket]:
@@ -696,11 +729,17 @@ def _cached_list(
     help="Only this source. Repeatable. Default: every configured source.",
 )
 @click.option(
-    "--mine/--all",
+    "--mine/--everyone",
     "mine",
-    default=True,
-    help="Tickets assigned to you (default), or to anyone.",
+    default=None,
+    help=(
+        "Tickets assigned to you, or to anyone. Default: mine, unless the "
+        "source sets mine = false."
+    ),
 )
+# The flag's first spelling, kept working so nothing that used it breaks. A
+# separate hidden option, because a flag pair cannot hide one of its names.
+@click.option("--all", "everyone", is_flag=True, default=False, hidden=True)
 @click.option(
     "--state",
     type=click.Choice(STATES),
@@ -733,7 +772,8 @@ def _cached_list(
 def list_tickets(
     settings: Settings,
     source_names=(),
-    mine=True,
+    mine=None,
+    everyone=False,
     state="open",
     text="",
     container="",
@@ -743,20 +783,28 @@ def list_tickets(
     """List tickets across your sources (the default command)."""
     output_format = _format(settings, output_format)
     sources = _pick_sources(_load_sources(settings), tuple(source_names))
+    if everyone:
+        mine = False
     query = ListQuery(
-        mine=mine,
         state=state,
         text=text,
-        limit=resolve_option(limit, settings.cfg, "limit", 50),
+        limit=resolve_option(limit, settings.cfg, "limit", _DEFAULT_LIMIT),
         container=container,
     )
-    _progress(settings, "Grinding through your tickets...")
+    # The flag decides for every source; without it, each source's own default.
+    mine_by_source = {
+        name: mine if mine is not None else _source_mine(provider)
+        for name, provider in sources.items()
+    }
+    _progress(settings, _describe_scope(query, mine_by_source))
 
     tickets: list[Ticket] = []
     failed = False
-    for provider in sources.values():
+    for name, provider in sources.items():
         try:
-            tickets += _cached_list(settings, provider, query)
+            tickets += _cached_list(
+                settings, provider, replace(query, mine=mine_by_source[name])
+            )
         except ProviderError as exc:
             # One source being down must not hide the others' tickets.
             failed = True
