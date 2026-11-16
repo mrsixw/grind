@@ -148,6 +148,7 @@ _DEFAULT_CONFIG_CONTENT = """\
 #   default-type = "Task"            # issue type used by create
 #   jql = "labels = backend"         # optional extra filter for list
 #   api-version = 3                  # 2 for Server / Data Center
+#   mine = false                     # list everyone's tickets by default
 """
 
 

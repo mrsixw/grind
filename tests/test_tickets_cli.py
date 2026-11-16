@@ -6,6 +6,7 @@ against a plugin are in ``test_plugin_cli.py``.
 
 import json
 import unicodedata
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from click.testing import CliRunner
@@ -117,7 +118,9 @@ def test_list_merges_sources_newest_first(grind, both):
     assert first[:2] == ["0", "work:PROJ-1"]
     assert second[:2] == ["1", "oss:acme/beans#7"]
     assert first[-1] == "Order more beans"
-    assert "Grinding through your tickets" in result.stderr
+    assert (
+        "Grinding through open tickets assigned to you in oss, work..." in result.stderr
+    )
     assert "Grinding" not in result.stdout
 
 
@@ -226,9 +229,76 @@ def test_list_unknown_source_is_an_error(grind, both):
 
 
 def test_list_passes_filters_through(grind, both):
-    grind("list", "--all", "--state", "closed", "-q", "kettle", "--in", "acme/milk")
+    grind(
+        "list", "--everyone", "--state", "closed", "-q", "kettle", "--in", "acme/milk"
+    )
     github_q = both.request_history[0].qs["q"][0]
     assert github_q == "is:issue repo:acme/milk state:closed kettle"
+
+
+def searches(history):
+    """The GitHub query and the JIRA JQL that a list run sent, in that order.
+
+    Parsed from the URL, because requests-mock's ``qs`` lowercases values and
+    would let ``currentUser()`` checks pass whatever was sent.
+    """
+
+    def param(fragment, name):
+        url = next(r.url for r in history if fragment in r.url)
+        return parse_qs(urlsplit(url).query)[name][0]
+
+    return param("search/issues", "q"), param("search/jql", "jql")
+
+
+def test_list_everyone_drops_the_assignee_filter_everywhere(grind, both):
+    result = grind("list", "--everyone")
+    assert result.exit_code == 0, result.output
+    github_q, jql = searches(both.request_history)
+    assert "assignee" not in github_q
+    assert "currentUser()" not in jql
+    assert "for everyone in oss, work" in result.stderr
+
+
+def test_list_all_still_works_but_is_no_longer_advertised(grind, both):
+    result = grind("list", "--all")
+    assert result.exit_code == 0, result.output
+    assert "assignee" not in searches(both.request_history)[0]
+    assert "--all" not in grind("list", "--help").stdout
+    assert "--everyone" in grind("list", "--help").stdout
+
+
+TEAM_PROJECT = CONFIG.replace('project = "PROJ"', 'project = "PROJ"\nmine = false')
+
+
+def test_a_source_can_default_to_everyone(grind, both):
+    result = grind("list", config=TEAM_PROJECT)
+    assert result.exit_code == 0, result.output
+    github_q, jql = searches(both.request_history)
+    assert "assignee:@me" in github_q
+    assert "currentUser()" not in jql
+    assert "open tickets assigned to you in oss; for everyone in work" in result.stderr
+
+
+def test_the_mine_flag_overrides_a_source_default(grind, both):
+    grind("list", "--mine", config=TEAM_PROJECT)
+    assert "currentUser()" in searches(both.request_history)[1]
+
+
+def test_a_non_boolean_mine_is_a_clean_error(grind, both):
+    result = grind("list", config=CONFIG.replace('"PROJ"', '"PROJ"\nmine = "no"'))
+    assert result.exit_code == 1
+    assert "Source 'work': mine must be true or false, not 'no'" in result.stderr
+
+
+def test_the_scope_line_names_the_state_container_and_search(grind, both):
+    result = grind(
+        "list", "-s", "oss", "--state", "all", "--in", "acme/milk", "-q", "kettle"
+    )
+    assert (
+        "Grinding through tickets assigned to you in oss, within acme/milk, "
+        'matching "kettle"...' in result.stderr
+    )
+    assert "Grinding" not in result.stdout
 
 
 def test_list_empty_says_so_on_stderr_and_leaves_stdout_empty(grind, requests_mock):

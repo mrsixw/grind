@@ -58,7 +58,7 @@ Feature: Tickets from the built binary
     And stdout contains "pot:DECAF-1"
     And stdout contains "Refill the decaf jar"
     And stdout does not contain "Grinding"
-    And stderr contains "Grinding through your tickets"
+    And stderr contains "Grinding through open tickets assigned to you in pot"
     And stdout carries no ANSI colour
 
   Scenario: JSON output is nothing but JSON

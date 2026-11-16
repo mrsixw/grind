@@ -35,10 +35,15 @@ grind sources --check       # test each source's credentials
 ```bash
 grind list                          # mine, open, every source
 grind list -s work                  # one source (repeat -s for several)
-grind list --all --in PROJ          # everyone's, in one project or repo
+grind list --everyone --in PROJ     # everyone's, in one project or repo
 grind list --state closed -q beans  # free-text search
 grind list --limit 10 --format json | jq '.[].ref'
 ```
+
+A line on stderr says what is being listed, for example `Grinding through open
+tickets assigned to you in oss; for everyone in work...`, so a filtered list
+never passes for the whole queue. Set `mine = false` on a source to make
+everyone's tickets its default.
 
 Tickets are merged across sources and sorted by last update. If one source
 fails, the others are still printed, a warning goes to stderr, and the exit

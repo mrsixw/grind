@@ -76,7 +76,7 @@ export GITHUB_TOKEN=... JIRA_TOKEN=...
 grind sources --check                # are the credentials good?
 
 grind                                # my open tickets, everywhere
-grind list --all --in PROJ -q beans  # search a project
+grind list --everyone --in PROJ -q beans  # search a project
 grind show work:PROJ-123 --comments
 grind create -s work -t "Order more beans" --type Task
 grind comment work:PROJ-123 "Ordered. Arrives Tuesday."
