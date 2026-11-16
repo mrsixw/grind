@@ -1,6 +1,7 @@
 """The JIRA provider, with HTTP faked at the requests boundary."""
 
 import base64
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -134,10 +135,54 @@ def test_jira_error_messages_are_surfaced(cloud, requests_mock):
 # ── list ───────────────────────────────────────────────────────────────────
 
 
-def test_list_takes_only_one_project_for_now(cloud, requests_mock):
-    with pytest.raises(ProviderError, match="takes one --in project"):
-        cloud.list_tickets(ListQuery(containers=("PROJ", "OPS")))
-    assert requests_mock.call_count == 0
+def sent_jql(requests_mock):
+    """The JQL as sent, unlowered (requests-mock lowercases ``qs``)."""
+    return parse_qs(urlsplit(requests_mock.last_request.url).query)["jql"][0]
+
+
+def jira(monkeypatch, **config):
+    monkeypatch.setenv("JIRA_TOKEN", "tok")
+    return JiraProvider(
+        "work", {"provider": "jira", "url": URL, "user": "ada@acme.example", **config}
+    )
+
+
+@pytest.mark.parametrize(
+    ("config", "containers", "scope"),
+    [
+        ({"projects": ["PROJ", "OPS"]}, (), 'project in ("PROJ", "OPS")'),
+        ({"projects": "PROJ"}, (), 'project = "PROJ"'),
+        # Most specific wins, and replaces the level below it.
+        ({"project": "PROJ", "projects": ["A", "B"]}, (), 'project in ("A", "B")'),
+        ({"projects": ["A", "B"]}, ("OPS",), 'project = "OPS"'),
+        ({"project": "PROJ"}, ("A", "B"), 'project in ("A", "B")'),
+        ({}, ('Q"A',), 'project = "Q\\"A"'),
+    ],
+)
+def test_list_scope_precedence(monkeypatch, requests_mock, config, containers, scope):
+    requests_mock.get(f"{V3}/search/jql", json={"issues": []})
+    jira(monkeypatch, **config).list_tickets(
+        ListQuery(mine=False, containers=containers)
+    )
+    assert sent_jql(requests_mock) == (
+        f"{scope} AND statusCategory != Done ORDER BY updated DESC"
+    )
+
+
+def test_the_source_jql_still_applies_to_a_group(monkeypatch, requests_mock):
+    requests_mock.get(f"{V3}/search/jql", json={"issues": []})
+    provider = jira(monkeypatch, projects=["A", "B"], jql="labels = backend")
+    provider.list_tickets(ListQuery(mine=False, state="all"))
+    assert sent_jql(requests_mock) == (
+        'project in ("A", "B") AND (labels = backend) ORDER BY updated DESC'
+    )
+
+
+def test_everyone_across_a_group_needs_no_other_filter(monkeypatch, requests_mock):
+    requests_mock.get(f"{V3}/search/jql", json={"issues": [raw_issue()]})
+    provider = jira(monkeypatch, projects=["A", "B"])
+    (ticket,) = provider.list_tickets(ListQuery(mine=False, state="all"))
+    assert ticket.ref == "work:PROJ-1"
 
 
 def test_list_builds_jql_and_maps_tickets(cloud, requests_mock):
@@ -298,6 +343,22 @@ def test_server_create_sends_plain_text_and_defaults(server, requests_mock):
             "assignee": {"name": "grace"},
         }
     }
+
+
+def test_create_uses_the_only_project_in_a_group(monkeypatch, requests_mock):
+    requests_mock.post(f"{V3}/issue", json={"key": "OPS-1"})
+    requests_mock.get(f"{V3}/issue/OPS-1", json=raw_issue("OPS-1"))
+    jira(monkeypatch, projects=["OPS"]).create_ticket(TicketDraft(title="t"))
+    assert requests_mock.request_history[0].json()["fields"]["project"] == {
+        "key": "OPS"
+    }
+
+
+def test_create_in_a_group_of_projects_asks_which(monkeypatch, requests_mock):
+    provider = jira(monkeypatch, projects=["PROJ", "OPS"])
+    with pytest.raises(ProviderError, match="Choose from: PROJ, OPS"):
+        provider.create_ticket(TicketDraft(title="t"))
+    assert requests_mock.call_count == 0
 
 
 def test_create_without_a_project_is_explained(cloud, requests_mock):

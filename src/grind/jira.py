@@ -3,6 +3,9 @@
 Speaks REST v3 to JIRA Cloud by default (``user`` + API token, HTTP Basic) and
 REST v2 to Server / Data Center when the source sets ``api-version = 2``
 (personal access token, bearer). Keys are JIRA's own: ``PROJ-123``.
+
+``list`` can be scoped to one project (``project``) or a group
+(``projects``), searched together with ``project in (...)``.
 """
 
 import requests
@@ -152,13 +155,18 @@ class JiraProvider(HttpProvider):
 
     def _jql(self, query: ListQuery) -> str:
         clauses = []
-        if len(query.containers) > 1:
-            raise ProviderError(
-                f"Source '{self.source}' is JIRA, which takes one --in project."
-            )
-        project = (query.containers or (None,))[0] or self.config.get("project")
-        if project:
-            clauses.append(f"project = {_jql_quote(str(project))}")
+        # Most specific wins, and replaces the level below: --in, then the
+        # source's projects or project. The source's jql always still applies.
+        projects = (
+            query.containers
+            or self.config_list("projects")
+            or self.config_list("project")
+        )
+        if len(projects) == 1:
+            clauses.append(f"project = {_jql_quote(projects[0])}")
+        elif projects:
+            quoted = ", ".join(_jql_quote(name) for name in projects)
+            clauses.append(f"project in ({quoted})")
         if self.config.get("jql"):
             clauses.append(f"({self.config['jql']})")
         if query.mine:
@@ -235,11 +243,19 @@ class JiraProvider(HttpProvider):
         return {"accountId": matches[0]["accountId"]}
 
     def create_ticket(self, draft: TicketDraft) -> Ticket:
-        project = draft.container or self.config.get("project")
+        projects = self.config_list("projects")
+        project = (
+            draft.container
+            or self.config.get("project")
+            or (projects[0] if len(projects) == 1 else "")
+        )
         if not project:
+            choices = (
+                f" Choose from: {', '.join(projects)}." if len(projects) > 1 else ""
+            )
             raise ProviderError(
                 f"Which project? Pass --in PROJECT, or set 'project' on "
-                f"source '{self.source}'."
+                f"source '{self.source}'.{choices}"
             )
         fields: dict = {
             "project": {"key": str(project)},
