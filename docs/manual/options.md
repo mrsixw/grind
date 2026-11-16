@@ -161,6 +161,26 @@ grind --theme mono      # no colour
 
 Config key: `theme = "default"`
 
+### `--table-style`
+
+Choose how `list` and `sources` draw their tables. Choices: `outline`,
+`rounded_outline`, `grid`, `simple`, `github`, `plain`. Default: `outline`,
+the same bordered style breakfast uses.
+
+Every app built from the five-clis template offers the same key and the same
+choices, so one style can be set everywhere. Each is a
+[tabulate](https://github.com/astanin/python-tabulate#table-format) format.
+
+```bash
+grind --table-style rounded_outline
+grind --table-style plain    # no borders, closest to a bare column layout
+```
+
+Titles are clipped with `…` so the table fits the terminal width, measured in
+terminal cells, so emoji and other wide characters count double.
+
+Config key: `table-style = "outline"`
+
 ### `--seasonal-colours` / `--no-seasonal-colours`
 
 Apply seasonal ANSI colours based on the current date (enabled by default).

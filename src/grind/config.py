@@ -52,6 +52,12 @@ _DEFAULT_CONFIG_CONTENT = """\
 # Equivalent to: --theme <name>
 # theme = "default"
 
+# How tables are drawn. outline matches breakfast; the same choices are
+# offered by every app built from the five-clis template.
+# Choices: outline, rounded_outline, grid, simple, github, plain
+# Equivalent to: --table-style <name>
+# table-style = "outline"
+
 # Disable all ANSI colour output.
 # Also honoured via the GRIND_NO_COLOUR environment variable, set to any
 # non-empty value.
