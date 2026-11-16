@@ -147,7 +147,10 @@ def test_an_unknown_table_style_in_config_lists_the_choices(grind, both):
     assert ", ".join(TABLE_STYLES) in result.stderr
 
 
-def test_list_clips_titles_to_fit_the_terminal(grind, requests_mock, monkeypatch):
+@pytest.mark.parametrize("style", TABLE_STYLES)
+def test_list_clips_titles_to_fit_the_terminal(
+    grind, requests_mock, monkeypatch, style
+):
     long_title = "Descale the espresso machine before it seizes up " * 3
     requests_mock.get(
         f"{GH}/search/issues", json={"items": [gh_issue(title=long_title)]}
@@ -155,9 +158,22 @@ def test_list_clips_titles_to_fit_the_terminal(grind, requests_mock, monkeypatch
     requests_mock.get(f"{JIRA}/search/jql", json={"issues": []})
     width = 100
     monkeypatch.setenv("COLUMNS", str(width))
-    lines = grind("list").stdout.splitlines()
-    assert max(len(line) for line in lines) == width
-    assert table_rows("\n".join(lines))[1][-1].endswith("…")
+    stdout = grind("--table-style", style, "list").stdout
+    assert max(len(line) for line in stdout.splitlines()) == width
+    assert "…" in stdout and long_title.strip() not in stdout
+
+
+def test_titles_keep_a_readable_minimum_in_a_tiny_terminal(
+    grind, requests_mock, monkeypatch
+):
+    """Below the minimum the table overflows rather than hiding the title."""
+    requests_mock.get(
+        f"{GH}/search/issues", json={"items": [gh_issue(title="x" * 100)]}
+    )
+    requests_mock.get(f"{JIRA}/search/jql", json={"issues": []})
+    monkeypatch.setenv("COLUMNS", "40")
+    title = table_rows(grind("list").stdout)[1][-1]
+    assert title == "x" * 19 + "…"
 
 
 def test_list_clips_wide_characters_by_their_terminal_width(
