@@ -276,6 +276,24 @@ def test_create_uses_the_only_repo_in_a_group(monkeypatch, requests_mock):
     assert requests_mock.called
 
 
+@pytest.mark.parametrize(
+    ("config", "container", "expected"),
+    [
+        ({"repo": "acme/beans", "repos": ["acme/milk"]}, "", "acme/milk"),
+        ({"repo": "acme/beans", "repos": ["a/b", "c/d"]}, "acme/tea", "acme/tea"),
+        ({"repo": "acme/beans"}, "", "acme/beans"),
+    ],
+)
+def test_create_follows_the_same_precedence_as_list(
+    monkeypatch, requests_mock, config, container, expected
+):
+    requests_mock.post(f"{API}/repos/{expected}/issues", json=issue(1))
+    scoped(monkeypatch, **config).create_ticket(
+        TicketDraft(title="t", container=container)
+    )
+    assert requests_mock.called
+
+
 def test_create_in_a_group_of_repos_asks_which_and_lists_them(monkeypatch):
     provider = scoped(monkeypatch, repos=["acme/milk", "acme/beans"])
     with pytest.raises(ProviderError, match="Choose from: acme/milk, acme/beans"):
