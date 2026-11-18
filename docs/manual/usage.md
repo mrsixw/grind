@@ -3,10 +3,10 @@
 ## Basic usage
 
 ```bash
-five-clis                       # same as: five-clis greet
-five-clis greet --name Alice
-five-clis --theme rainbow
-five-clis --no-colour
+grind                       # same as: grind greet
+grind greet --name Alice
+grind --theme rainbow
+grind --no-colour
 ```
 
 Global options (`--theme`, `--no-colour`, `--config`, …) go before the
@@ -15,11 +15,11 @@ subcommand; they are resolved once and shared with every command.
 ## Themes
 
 ```bash
-five-clis --theme default
-five-clis --theme dark
-five-clis --theme light
-five-clis --theme mono       # no colour
-five-clis --theme rainbow    # cycling ROYGBIV
+grind --theme default
+grind --theme dark
+grind --theme light
+grind --theme mono       # no colour
+grind --theme rainbow    # cycling ROYGBIV
 ```
 
 ## Seasonal colours
@@ -27,25 +27,25 @@ five-clis --theme rainbow    # cycling ROYGBIV
 Seasonal colours are on by default. They change automatically around holidays:
 
 ```bash
-five-clis                                  # western calendar (default)
-five-clis --seasonal-calendar jewish       # Hanukkah, Passover, etc.
-five-clis --no-seasonal-colours            # disable entirely
+grind                                  # western calendar (default)
+grind --seasonal-calendar jewish       # Hanukkah, Passover, etc.
+grind --no-seasonal-colours            # disable entirely
 ```
 
 ## Config file
 
 ```bash
-five-clis config init               # write ~/.config/fiveclis/config.toml
-five-clis config show               # print resolved config
-five-clis --config my.toml greet    # use a custom config file
+grind config init               # write ~/.config/grind/config.toml
+grind config show               # print resolved config
+grind --config my.toml greet    # use a custom config file
 ```
 
 ## Shell completions
 
 ```bash
-eval "$(five-clis completions bash)"   # bash
-eval "$(five-clis completions zsh)"    # zsh
-five-clis completions fish | source    # fish
+eval "$(grind completions bash)"   # bash
+eval "$(grind completions zsh)"    # zsh
+grind completions fish | source    # fish
 ```
 
 `install.sh` installs these permanently and prints the one line your shell
@@ -56,7 +56,7 @@ zsh wants the directory on `fpath` above `compinit`, and bash wants either the
 ## Updating
 
 ```bash
-five-clis update                       # fetch and install the latest release
+grind update                       # fetch and install the latest release
 ```
 
 Replaces the running executable in place, atomically — an interrupted download
@@ -66,7 +66,7 @@ refreshed man page.
 ## Caching
 
 ```bash
-five-clis --cache                      # enable caching
-five-clis --cache --cache-ttl 10m      # cache for 10 minutes
-five-clis --no-cache                   # disable caching
+grind --cache                      # enable caching
+grind --cache --cache-ttl 10m      # cache for 10 minutes
+grind --no-cache                   # disable caching
 ```

@@ -1,13 +1,13 @@
 # Agent Instructions
 
 ## Project Overview
-- **five-clis** is a batteries-included Python CLI template (named after Five Guys: burgers, shakes & fries → five CLI essentials).
+- **grind** is a batteries-included Python CLI template (named after Five Guys: burgers, shakes & fries → five CLI essentials).
 - Built with Python and Click. Full infrastructure: themes, seasonal colours, caching, config files, XDG dirs, shell completions, auto-update checks, CI, release pipeline.
-- Package structure: code in `src/fiveclis/`, tests in `tests/`.
+- Package structure: code in `src/grind/`, tests in `tests/`.
 - Use this as a GitHub template to scaffold new CLI apps.
 
 ## Project Structure
-- `src/fiveclis/` — package source code
+- `src/grind/` — package source code
   - `cli.py` — Click group entrypoint; subcommands share one `Settings` via `ctx.obj` (replace `greet` with your own commands)
   - `settings.py` — `Settings` dataclass resolved from flags + config file, received by subcommands via `@click.pass_obj`
   - `ui.py` — Terminal themes, seasonal colour system (SEASONAL_PALETTES, PRIDE_RAINBOW, HOLI_RAINBOW, THEMES registry)
@@ -40,7 +40,7 @@
 ## Module API contract
 - A leading `_` means "internal to this module". Anything a sibling module
   imports must not have one, and must appear in that module's `__all__`.
-- Every module in `src/fiveclis/` declares `__all__`. Add new public names to it.
+- Every module in `src/grind/` declares `__all__`. Add new public names to it.
 - Reach other modules through their public names only. If you need something a
   module keeps private, widen that module's API deliberately — rename it and add
   it to `__all__` — rather than reaching past the underscore. A private name you

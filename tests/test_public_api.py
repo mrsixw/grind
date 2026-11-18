@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-PACKAGE = Path(__file__).resolve().parent.parent / "src" / "fiveclis"
+PACKAGE = Path(__file__).resolve().parent.parent / "src" / "grind"
 
 
 def _modules():
@@ -37,7 +37,7 @@ def test_no_private_names_imported_across_modules(path: Path):
         if not isinstance(node, ast.ImportFrom):
             continue
         # A sibling is either a relative import (level > 0) or an absolute one
-        # spelled `from fiveclis.x import ...`. Catching only the first would
+        # spelled `from grind.x import ...`. Catching only the first would
         # leave the absolute spelling as a way around this check.
         sibling = node.level > 0 or (node.module or "").startswith(f"{PACKAGE.name}.")
         if not sibling:
@@ -106,7 +106,7 @@ def test_all_entries_exist_and_are_public(path: Path):
     A stale entry would make `from module import *` raise at import time, so
     this fails fast in CI instead.
     """
-    module = __import__(f"fiveclis.{path.stem}", fromlist=["__all__"])
+    module = __import__(f"grind.{path.stem}", fromlist=["__all__"])
     exported = getattr(module, "__all__", [])
 
     # Plain alphabetical, enforced here rather than by RUF022, whose

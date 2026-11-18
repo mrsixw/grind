@@ -4,9 +4,9 @@ import pytest
 from click.testing import CliRunner
 from freezegun import freeze_time
 
-from fiveclis import cli as cli_mod
-from fiveclis import ui as ui_mod
-from fiveclis.cli import main
+from grind import cli as cli_mod
+from grind import ui as ui_mod
+from grind.cli import main
 
 
 def _invoke(*args, **kwargs):
@@ -19,7 +19,7 @@ def test_version():
     assert result.exit_code == 0
     # Assert the shape, not a substring of one particular version. The old
     # check looked for "0.", which matched 1.0.2 by luck and not 1.1.0; and
-    # for "fiveclis", which never matched, since CliRunner takes the prog name
+    # for "grind", which never matched, since CliRunner takes the prog name
     # from the callback function (`main`) rather than the console script.
     assert re.search(r"\bversion \d+\.\d+\.\d+", result.output), result.output
 
@@ -58,7 +58,7 @@ def test_greet_with_name(monkeypatch):
 def test_completions_bash():
     result = _invoke("completions", "bash")
     assert result.exit_code == 0
-    assert "_FIVE_CLIS_COMPLETE" in result.output
+    assert "_GRIND_COMPLETE" in result.output
 
 
 def test_completions_zsh():
@@ -88,9 +88,9 @@ def test_shell_enum_members_are_their_lowercase_names():
 
 
 def test_config_init(tmp_path, monkeypatch):
-    from fiveclis import config as cfg_mod
+    from grind import config as cfg_mod
 
-    monkeypatch.setattr(cfg_mod, "get_config_dir", lambda: tmp_path / "fiveclis")
+    monkeypatch.setattr(cfg_mod, "get_config_dir", lambda: tmp_path / "grind")
     result = _invoke("config", "init")
     assert result.exit_code == 0
     assert "config.toml" in result.output
@@ -172,7 +172,7 @@ def test_settings_resolution_config_beats_default(tmp_path, monkeypatch):
 
 
 def test_config_update_no_config_exits_1(tmp_path, monkeypatch):
-    from fiveclis import config as cfg_mod
+    from grind import config as cfg_mod
 
     missing = tmp_path / "missing.toml"
     monkeypatch.setattr(cfg_mod, "get_config_paths", lambda: [missing])
@@ -181,8 +181,8 @@ def test_config_update_no_config_exits_1(tmp_path, monkeypatch):
 
 
 def test_config_update_up_to_date_exits_0(tmp_path, monkeypatch):
-    from fiveclis import config as cfg_mod
-    from fiveclis.config import _DEFAULT_CONFIG_CONTENT
+    from grind import config as cfg_mod
+    from grind.config import _DEFAULT_CONFIG_CONTENT
 
     cfg_file = tmp_path / "config.toml"
     cfg_file.write_text(_DEFAULT_CONFIG_CONTENT)
@@ -198,7 +198,7 @@ def _stub_update(monkeypatch, status, current="1.0.0", detail="2.0.0"):
     monkeypatch.setattr(
         cli_mod, "perform_update", lambda _path: (status, current, detail)
     )
-    monkeypatch.setattr(cli_mod, "_current_executable_path", lambda: "/tmp/five-clis")
+    monkeypatch.setattr(cli_mod, "_current_executable_path", lambda: "/tmp/grind")
 
 
 def test_update_reports_success(monkeypatch):
@@ -244,7 +244,7 @@ def test_update_does_not_also_print_the_update_notice(monkeypatch):
 
 def test_current_executable_path_is_absolute(monkeypatch):
     monkeypatch.setattr(cli_mod.shutil, "which", lambda _name: None)
-    monkeypatch.setattr(cli_mod.sys, "argv", ["./five-clis"])
+    monkeypatch.setattr(cli_mod.sys, "argv", ["./grind"])
     assert cli_mod._current_executable_path().startswith("/")
 
 
@@ -254,7 +254,7 @@ def test_completions_survives_a_broken_config(tmp_path):
     bad.write_text('cache-ttl = "not-a-duration"\n')
     result = _invoke("--config", str(bad), "completions", "bash")
     assert result.exit_code == 0
-    assert "_FIVE_CLIS_COMPLETE" in result.stdout
+    assert "_GRIND_COMPLETE" in result.stdout
     assert "Invalid TTL" not in result.output
 
 
@@ -508,7 +508,7 @@ def test_no_update_check_env_any_non_empty_value_suppresses(
     monkeypatch.setattr(
         cli_mod, "check_for_update", lambda show_summary=False: calls.append(1)
     )
-    monkeypatch.setenv("FIVE_CLIS_NO_UPDATE_CHECK", value)
+    monkeypatch.setenv("GRIND_NO_UPDATE_CHECK", value)
     result = _invoke("greet", "--name", "x")
     assert result.exit_code == 0, result.output
     assert calls == [], f"{value!r} should suppress the update check"
@@ -519,7 +519,7 @@ def test_no_update_check_env_empty_leaves_check_enabled(monkeypatch):
     monkeypatch.setattr(
         cli_mod, "check_for_update", lambda show_summary=False: calls.append(1)
     )
-    monkeypatch.setenv("FIVE_CLIS_NO_UPDATE_CHECK", "")
+    monkeypatch.setenv("GRIND_NO_UPDATE_CHECK", "")
     result = _invoke("greet", "--name", "x")
     assert result.exit_code == 0
     assert calls == [1], "an empty value must not suppress the update check"
@@ -529,7 +529,7 @@ def test_no_update_check_env_empty_leaves_check_enabled(monkeypatch):
 def test_no_colour_env_any_non_empty_value_disables_colour(
     monkeypatch, quiet_updates, value
 ):
-    monkeypatch.setenv("FIVE_CLIS_NO_COLOUR", value)
+    monkeypatch.setenv("GRIND_NO_COLOUR", value)
     runner = CliRunner()
     result = runner.invoke(
         main, ["--seasonal-calendar", "rainbow", "greet", "--name", "x"], color=True
@@ -539,7 +539,7 @@ def test_no_colour_env_any_non_empty_value_disables_colour(
 
 
 def test_no_colour_env_empty_leaves_colour_enabled(monkeypatch, quiet_updates):
-    monkeypatch.setenv("FIVE_CLIS_NO_COLOUR", "")
+    monkeypatch.setenv("GRIND_NO_COLOUR", "")
     runner = CliRunner()
     result = runner.invoke(
         main, ["--seasonal-calendar", "rainbow", "greet", "--name", "x"], color=True
@@ -548,7 +548,7 @@ def test_no_colour_env_empty_leaves_colour_enabled(monkeypatch, quiet_updates):
     assert "\033[" in result.output
 
 
-@pytest.mark.parametrize("var", ["FIVE_CLIS_NO_UPDATE_CHECK", "FIVE_CLIS_NO_COLOUR"])
+@pytest.mark.parametrize("var", ["GRIND_NO_UPDATE_CHECK", "GRIND_NO_COLOUR"])
 def test_unparsable_env_value_never_aborts_the_run(monkeypatch, quiet_updates, var):
     # The regression: Click's envvar= on a flag rejected unrecognised values,
     # so a typo in a shell profile broke every invocation.
@@ -583,14 +583,14 @@ def _greet_output(tmp_path, body="", extra_args=()):
 
 
 def test_colour_on_by_default(tmp_path, quiet_updates, monkeypatch):
-    monkeypatch.delenv("FIVE_CLIS_NO_COLOUR", raising=False)
+    monkeypatch.delenv("GRIND_NO_COLOUR", raising=False)
     result = _greet_output(tmp_path)
     assert result.exit_code == 0, result.output
     assert "\033[" in result.output
 
 
 def test_no_colour_config_key_disables_colour(tmp_path, quiet_updates, monkeypatch):
-    monkeypatch.delenv("FIVE_CLIS_NO_COLOUR", raising=False)
+    monkeypatch.delenv("GRIND_NO_COLOUR", raising=False)
     result = _greet_output(tmp_path, "no-colour = true\n")
     assert result.exit_code == 0, result.output
     assert "\033[" not in result.output
@@ -599,7 +599,7 @@ def test_no_colour_config_key_disables_colour(tmp_path, quiet_updates, monkeypat
 def test_no_colour_config_key_false_leaves_colour_on(
     tmp_path, quiet_updates, monkeypatch
 ):
-    monkeypatch.delenv("FIVE_CLIS_NO_COLOUR", raising=False)
+    monkeypatch.delenv("GRIND_NO_COLOUR", raising=False)
     result = _greet_output(tmp_path, "no-colour = false\n")
     assert "\033[" in result.output
 
@@ -607,12 +607,12 @@ def test_no_colour_config_key_false_leaves_colour_on(
 def test_no_colour_flag_beats_a_false_config_key(tmp_path, quiet_updates, monkeypatch):
     # Any one of the three switching colour off is enough; none can switch it
     # back on.
-    monkeypatch.delenv("FIVE_CLIS_NO_COLOUR", raising=False)
+    monkeypatch.delenv("GRIND_NO_COLOUR", raising=False)
     result = _greet_output(tmp_path, "no-colour = false\n", ["--no-colour"])
     assert "\033[" not in result.output
 
 
 def test_no_colour_env_beats_a_false_config_key(tmp_path, quiet_updates, monkeypatch):
-    monkeypatch.setenv("FIVE_CLIS_NO_COLOUR", "1")
+    monkeypatch.setenv("GRIND_NO_COLOUR", "1")
     result = _greet_output(tmp_path, "no-colour = false\n")
     assert "\033[" not in result.output

@@ -1,17 +1,17 @@
-"""Tests for the centralised constants in fiveclis.constants."""
+"""Tests for the centralised constants in grind.constants."""
 
-import fiveclis.constants as constants
+import grind.constants as constants
 
 
 def test_app_identity():
-    assert constants.APP_NAME == "fiveclis"
-    assert constants.BINARY_NAME == "five-clis"
-    assert constants.ENVVAR_PREFIX == "FIVE_CLIS"
-    assert constants.LOG_FILENAME == "fiveclis.log"
+    assert constants.APP_NAME == "grind"
+    assert constants.BINARY_NAME == "grind"
+    assert constants.ENVVAR_PREFIX == "GRIND"
+    assert constants.LOG_FILENAME == "grind.log"
 
 
 def test_update_constants():
-    assert constants.UPDATE_CHECK_REPO == "mrsixw/five-clis"
+    assert constants.UPDATE_CHECK_REPO == "mrsixw/grind"
     assert constants.RELEASE_ASSET_URL.startswith("https://github.com/")
     assert constants.RELEASE_ASSET_URL.endswith(f"/download/{constants.BINARY_NAME}")
     assert constants.VERSION_CACHE_FILENAME == "latest_version.json"

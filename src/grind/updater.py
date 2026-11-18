@@ -186,7 +186,7 @@ def check_for_update(show_summary: bool = False):
 
 
 def perform_update(executable_path) -> tuple[UpdateStatus, str, str | None]:
-    """Download the latest five-clis release and replace executable_path in place.
+    """Download the latest grind release and replace executable_path in place.
 
     Returns (status, current_version, detail):
       - UPDATED: executable_path now holds the release named by detail.

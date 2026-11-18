@@ -43,9 +43,9 @@ def get_config_paths() -> list[Path]:
     """Return config file search paths in priority order (highest → lowest).
 
     Resolution order:
-      1. ./.fiveclis.toml               (current directory)
-      2. ~/.config/fiveclis/config.toml (XDG default)
-      3. ~/.fiveclis.toml               (legacy home directory)
+      1. ./.grind.toml               (current directory)
+      2. ~/.config/grind/config.toml (XDG default)
+      3. ~/.grind.toml               (legacy home directory)
     """
     return [
         Path.cwd() / f".{APP_NAME}.toml",

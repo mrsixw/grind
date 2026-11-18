@@ -1,7 +1,7 @@
 """Fixtures for the end-to-end suite.
 
 These tests drive the **built** binary as a subprocess. Nothing here fakes any
-part of ``fiveclis`` — if a test needs to, it is a unit test and belongs in
+part of ``grind`` — if a test needs to, it is a unit test and belongs in
 ``tests/``. See ``docs/testing.md``.
 
 **On the name.** ``conftest.py`` is not a name we chose and cannot be changed:
@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from fiveclis.constants import APP_NAME, BINARY_NAME, ENVVAR_PREFIX
+from grind.constants import APP_NAME, BINARY_NAME, ENVVAR_PREFIX
 
 # These star imports are load-bearing, not laziness. `@given`/`@when`/`@then`
 # register a step by injecting a pytest fixture into the *defining* module's

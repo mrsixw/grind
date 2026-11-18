@@ -8,7 +8,7 @@ expected_version="$(cat VERSION)"
 # "<name>, version X", so the version is the last field. Comparing the whole
 # line — or matching a substring, as this once did — lets 1.2.30 pass for
 # 1.2.3, and waves through exactly the mismatch this check exists to catch.
-actual_version="$(./dist/five-clis --version 2>&1 | awk '{print $NF}')"
+actual_version="$(./dist/grind --version 2>&1 | awk '{print $NF}')"
 
 if [[ "${actual_version}" != "${expected_version}" ]]; then
     echo "Binary version mismatch. Expected: ${expected_version}, got: ${actual_version}" >&2

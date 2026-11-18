@@ -41,17 +41,17 @@ __all__ = [
 # ── App identity ───────────────────────────────────────────────────────────
 
 #: Import name of the package, and the directory name used under the XDG dirs.
-APP_NAME = "fiveclis"
+APP_NAME = "grind"
 #: The installed executable, as the user types it and as Click reports it.
-BINARY_NAME = "five-clis"
-#: Prefix for environment-variable overrides, e.g. ``FIVE_CLIS_NO_COLOUR``.
-ENVVAR_PREFIX = "FIVE_CLIS"
+BINARY_NAME = "grind"
+#: Prefix for environment-variable overrides, e.g. ``GRIND_NO_COLOUR``.
+ENVVAR_PREFIX = "GRIND"
 
 LOG_FILENAME = f"{APP_NAME}.log"
 
 # ── Update checks ──────────────────────────────────────────────────────────
 
-UPDATE_CHECK_REPO = "mrsixw/five-clis"
+UPDATE_CHECK_REPO = "mrsixw/grind"
 RELEASE_ASSET_URL = (
     f"https://github.com/{UPDATE_CHECK_REPO}/releases/latest/download/{BINARY_NAME}"
 )

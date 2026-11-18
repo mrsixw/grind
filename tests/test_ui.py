@@ -2,9 +2,9 @@ import datetime
 
 from freezegun import freeze_time
 
-from fiveclis import ui as ui_mod
-from fiveclis.constants import BIRTHDAY_NAME, BURGER_RECIPES, CAKE_RECIPES
-from fiveclis.ui import (
+from grind import ui as ui_mod
+from grind.constants import BIRTHDAY_NAME, BURGER_RECIPES, CAKE_RECIPES
+from grind.ui import (
     CALENDAR_NAMES,
     CALENDARS,
     HOLI_RAINBOW,
