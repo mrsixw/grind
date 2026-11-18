@@ -7,8 +7,6 @@ from freezegun import freeze_time
 from grind import cli as cli_mod
 from grind import ui as ui_mod
 from grind.cli import main
-from grind.tickets import Ticket
-from tests.pantry import pantry_fixture  # noqa: F401  (the pantry fixture)
 
 
 def _invoke(*args, **kwargs):
@@ -38,26 +36,26 @@ def test_help():
     assert "config" in result.output
 
 
-SOURCE_TOML = '\n[sources.oss]\nprovider = "pantry"\n'
+SOURCE_TOML = '\n[sources.oss]\nprovider = "github"\nrepo = "acme/beans"\n'
 
-ISSUE = Ticket(
-    source="oss",
-    key="acme/beans#7",
-    title="Descale the espresso machine",
-    status="open",
-    assignee="ada",
-    updated="2026-11-01T09:00:00Z",
-)
+ISSUE = {
+    "number": 7,
+    "title": "Descale the espresso machine",
+    "state": "open",
+    "repository_url": "https://api.github.com/repos/acme/beans",
+    "html_url": "https://github.com/acme/beans/issues/7",
+    "updated_at": "2026-11-01T09:00:00Z",
+    "assignees": [{"login": "ada"}],
+    "labels": [],
+}
 
 
 @pytest.fixture(autouse=True)
-def stocked_pantry(pantry, requests_mock):
-    """One open ticket in the pantry plugin, for tests that need real output.
-
-    requests_mock stays on so no test can reach the network by accident.
-    """
-    pantry.add(ISSUE)
-    return pantry
+def github_api(requests_mock, monkeypatch):
+    """One open issue behind a faked GitHub, for tests that need real output."""
+    monkeypatch.setenv("GH_TOKEN", "not-a-real-token")
+    requests_mock.get("https://api.github.com/search/issues", json={"items": [ISSUE]})
+    return requests_mock
 
 
 def _config(tmp_path, body=""):
