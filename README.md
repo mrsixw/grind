@@ -9,10 +9,6 @@ The daily grind is the tickets. `grind` pours them all into one cup: list what
 is on your plate across every system you work in, then create, edit, comment
 on, assign and move tickets without leaving the terminal.
 
-> **Status:** the commands, the provider interface and plugin loading are in
-> place, but the built-in GitHub and JIRA providers are stubs that say so when
-> used. Their API calls follow in the next change.
-
 ```text
 $ grind
 TICKET            STATUS       ASSIGNEE      UPDATED     TITLE
