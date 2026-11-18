@@ -1,11 +1,11 @@
-# Getting Started with five-clis
+# Getting Started with grind
 
 This guide walks you through everything you need to do after clicking **Use this template**
 on GitHub — from renaming the package to watching your first green CI run.
 
 ## 1. Create your repo from the template
 
-On the [five-clis GitHub page](https://github.com/mrsixw/five-clis), click
+On the [grind GitHub page](https://github.com/mrsixw/grind), click
 **Use this template → Create a new repository**. Give it a name (this becomes your CLI
 name, e.g. `myapp`).
 
@@ -25,23 +25,8 @@ make format && make lint && make test
 
 ## 3. Rename the package
 
-Run the interactive rename script — it handles all find/replace, renames the source
-directory, and removes stale build artefacts in one pass:
-
-```bash
-uv run python utils/rename.py
-```
-
-You'll be prompted for three values:
-
-| Prompt | Example | What it sets |
-| ------ | ------- | ------------ |
-| Python package name | `myapp` | `src/fiveclis/` → `src/myapp/`, imports |
-| CLI binary name | `my-app` | Entry point, Makefile, CI, completions |
-| GitHub repo | `you/myapp` | `install.sh`, `updater.py`, CI badge |
-
-If you prefer to rename manually, see the full file-by-file reference table in the
-[five-clis README](https://github.com/mrsixw/five-clis#using-this-template).
+grind has already been renamed from the five-clis template with its
+`utils/rename.py` script, which was removed once it had run.
 
 ## 4. Replace the demo business logic
 

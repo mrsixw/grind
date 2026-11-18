@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "fiveclis"
+name = "grind"
 dynamic = ["version"]
 description = "A batteries-included Python CLI template"
 readme = "README.md"
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-five-clis = "fiveclis.cli:main"
+grind = "grind.cli:main"
 
 [project.optional-dependencies]
 test = [

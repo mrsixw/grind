@@ -5,8 +5,8 @@ import requests
 import requests_mock as req_mock
 from freezegun import freeze_time
 
-from fiveclis import updater as upd
-from fiveclis.updater import UpdateStatus
+from grind import updater as upd
+from grind.updater import UpdateStatus
 
 
 def test_parse_version_tuple_basic():
@@ -83,8 +83,8 @@ def test_get_latest_version_expired_cache_fetches_api(tmp_path, monkeypatch):
 
 @pytest.fixture
 def installed_exe(tmp_path):
-    """A stand-in for the installed five-clis binary."""
-    exe = tmp_path / "bin" / "five-clis"
+    """A stand-in for the installed grind binary."""
+    exe = tmp_path / "bin" / "grind"
     exe.parent.mkdir(parents=True)
     exe.write_bytes(b"old binary")
     exe.chmod(0o755)
@@ -112,7 +112,7 @@ def test_perform_update_leaves_no_temp_file_behind(installed_exe, monkeypatch):
     with req_mock.Mocker() as m:
         m.get(upd.RELEASE_ASSET_URL, content=b"new binary")
         upd.perform_update(installed_exe)
-    assert [f.name for f in installed_exe.parent.iterdir()] == ["five-clis"]
+    assert [f.name for f in installed_exe.parent.iterdir()] == ["grind"]
 
 
 def test_perform_update_already_current(installed_exe, monkeypatch):
@@ -143,7 +143,7 @@ def test_perform_update_download_failure_leaves_binary_untouched(
     assert status is UpdateStatus.ERROR
     assert "boom" in detail
     assert installed_exe.read_bytes() == b"old binary"
-    assert [f.name for f in installed_exe.parent.iterdir()] == ["five-clis"]
+    assert [f.name for f in installed_exe.parent.iterdir()] == ["grind"]
 
 
 def test_perform_update_http_error_leaves_binary_untouched(installed_exe, monkeypatch):
@@ -171,7 +171,7 @@ def test_perform_update_permission_denied_reports_detail(installed_exe, monkeypa
 
 
 def test_perform_update_refuses_to_overwrite_a_source_file(tmp_path, monkeypatch):
-    """`python -m fiveclis.cli update` must not write a binary over cli.py."""
+    """`python -m grind.cli update` must not write a binary over cli.py."""
     _pin_versions(monkeypatch, current="1.0.0", latest="2.0.0")
     source = tmp_path / "cli.py"
     source.write_text("# the actual source\n")
@@ -203,4 +203,4 @@ def test_perform_update_cleans_up_after_a_keyboard_interrupt(
             upd.perform_update(installed_exe)
 
     assert installed_exe.read_bytes() == b"old binary"
-    assert [f.name for f in installed_exe.parent.iterdir()] == ["five-clis"]
+    assert [f.name for f in installed_exe.parent.iterdir()] == ["grind"]

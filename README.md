@@ -1,6 +1,6 @@
-# 🍔 five-clis
+# 🍔 grind
 
-[![CI](https://github.com/mrsixw/five-clis/actions/workflows/ci.yml/badge.svg)](https://github.com/mrsixw/five-clis/actions/workflows/ci.yml)
+[![CI](https://github.com/mrsixw/grind/actions/workflows/ci.yml/badge.svg)](https://github.com/mrsixw/grind/actions/workflows/ci.yml)
 
 **A batteries-included Python CLI template.** Named after Five Guys — burgers, shakes & fries → five CLI essentials.
 
@@ -21,19 +21,19 @@ Click **Use this template** to scaffold a new project with everything wired up a
 | **CI** | GitHub Actions: test, lint, build, spell, docs-lint, man, completions, release |
 | **Release pipeline** | `git-mkver` version bumping, shiv binary, man page, `gh release create` |
 | **install.sh** | One-liner install with binary + man page + shell completions |
-| **Self-update** | `five-clis update` swaps in the latest release atomically |
+| **Self-update** | `grind update` swaps in the latest release atomically |
 
 ## Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/mrsixw/five-clis/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/mrsixw/grind/main/install.sh | bash
 ```
 
 Or build and install from source:
 
 ```bash
-git clone https://github.com/mrsixw/five-clis.git
-cd five-clis
+git clone https://github.com/mrsixw/grind.git
+cd grind
 make build
 sudo make install
 ```
@@ -61,13 +61,13 @@ make uninstall PREFIX=$HOME/.local
 ## Quick start
 
 ```bash
-five-clis --help
-five-clis --theme rainbow
-five-clis greet --name Alice
-five-clis config init
-five-clis config show
-eval "$(five-clis completions bash)"
-five-clis update
+grind --help
+grind --theme rainbow
+grind greet --name Alice
+grind config init
+grind config show
+eval "$(grind completions bash)"
+grind update
 ```
 
 ## Using this template
@@ -77,7 +77,8 @@ walkthrough. In brief:
 
 1. Click **Use this template** on GitHub
 2. Clone your new repo and run `uv sync --extra dev`
-3. Run `uv run python utils/rename.py` to rename the package in one pass
+3. Rename the package (grind was renamed with the template's `utils/rename.py`,
+   which it then removed)
 4. Replace the `greet` business logic in `src/<pkg>/cli.py` with your own
 5. Add a `GH_TOKEN` secret to your repo (required for the release CI job)
 6. Run `make format && make lint && make test` to verify everything works

@@ -3,7 +3,7 @@ from datetime import timedelta
 import pytest
 from freezegun import freeze_time
 
-from fiveclis import cache as cache_mod
+from grind import cache as cache_mod
 
 
 def test_parse_ttl_seconds():

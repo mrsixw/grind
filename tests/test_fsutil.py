@@ -1,4 +1,4 @@
-"""Tests for fiveclis.fsutil."""
+"""Tests for grind.fsutil."""
 
 import os
 import re
@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from fiveclis import fsutil
-from fiveclis.fsutil import atomic_write_stream, atomic_write_text
+from grind import fsutil
+from grind.fsutil import atomic_write_stream, atomic_write_text
 
 
 def test_writes_new_file(tmp_path):

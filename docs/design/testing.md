@@ -39,9 +39,9 @@ Nothing in the harness names this CLI. It reads three values from
 `constants.py`:
 
 ```python
-APP_NAME = "fiveclis"        # package, and the config/cache subdirectory
-BINARY_NAME = "five-clis"    # what the user types, and dist/<BINARY_NAME>
-ENVVAR_PREFIX = "FIVE_CLIS"  # FIVE_CLIS_E2E_BINARY, FIVE_CLIS_NO_UPDATE_CHECK
+APP_NAME = "grind"        # package, and the config/cache subdirectory
+BINARY_NAME = "grind"    # what the user types, and dist/<BINARY_NAME>
+ENVVAR_PREFIX = "GRIND"  # GRIND_E2E_BINARY, GRIND_NO_UPDATE_CHECK
 ```
 
 Change those and `tests/e2e/conftest.py` and `tests/e2e/steps/` follow with no
@@ -89,20 +89,20 @@ line, which overrides it.
 ### Skips versus failures
 
 Locally, a missing binary **skips** with an actionable message — you have not
-run `make build`. In CI, `FIVE_CLIS_E2E_REQUIRE` turns that into a hard failure,
+run `make build`. In CI, `GRIND_E2E_REQUIRE` turns that into a hard failure,
 so the suite cannot quietly rot to green.
 
 | Variable | Effect |
 | --- | --- |
-| `FIVE_CLIS_E2E_BINARY` | Path to the binary under test (default: `dist/five-clis`) |
-| `FIVE_CLIS_E2E_REQUIRE` | Missing binary fails instead of skipping |
-| `FIVE_CLIS_E2E_TIMEOUT` | Per-invocation timeout in seconds (default: 90) |
+| `GRIND_E2E_BINARY` | Path to the binary under test (default: `dist/grind`) |
+| `GRIND_E2E_REQUIRE` | Missing binary fails instead of skipping |
+| `GRIND_E2E_TIMEOUT` | Per-invocation timeout in seconds (default: 90) |
 
 ## Offline by design
 
 Unlike some CLIs, this suite makes **no network calls**. The only outbound
 request in the codebase is `updater.py`'s release check, and the harness sets
-`FIVE_CLIS_NO_UPDATE_CHECK=1` in every scenario's environment. That keeps the
+`GRIND_NO_UPDATE_CHECK=1` in every scenario's environment. That keeps the
 suite free to run on every push: no API budget, no rate limits, no token secret,
 and full coverage on pull requests from forks.
 

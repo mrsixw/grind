@@ -1,4 +1,4 @@
-"""five-clis — a batteries-included Python CLI template.
+"""grind — a batteries-included Python CLI template.
 
 Replace the ``greet`` command with your own business logic.
 All infrastructure (themes, caching, update checks, shell completions,
@@ -64,7 +64,7 @@ def env_flag_is_set(name: str) -> bool:
     """Report whether an environment variable is set to any non-empty value.
 
     This is the no-color.org convention: presence is the signal and the value
-    is deliberately ignored, so ``FIVE_CLIS_NO_COLOUR=0`` disables colour just
+    is deliberately ignored, so ``GRIND_NO_COLOUR=0`` disables colour just
     as ``=1`` does.
 
     Click's ``envvar=`` on a boolean flag cannot express this. It routes the
@@ -115,7 +115,7 @@ def resolve_option(flag_value, cfg: dict, key: str, default):
     "no_colour",
     is_flag=True,
     default=False,
-    # No envvar= here: Click would route FIVE_CLIS_NO_COLOUR through its BOOL
+    # No envvar= here: Click would route GRIND_NO_COLOUR through its BOOL
     # converter, so unrecognised values abort the run. Resolved by presence in
     # the callback instead — see env_flag_is_set.
     help=(
@@ -191,13 +191,13 @@ def main(
     burger,
     cake,
 ):
-    """🍔 five-clis — a batteries-included Python CLI template.
+    """🍔 grind — a batteries-included Python CLI template.
 
     A working 'hello world' that demonstrates themes, seasonal colours,
     caching, config files, shell completions, and auto-update checks.
     Replace the ``greet`` command with your own business logic.
 
-    Running with no subcommand is equivalent to ``five-clis greet``.
+    Running with no subcommand is equivalent to ``grind greet``.
     """
     # Before anything else, so the elapsed row covers config resolution too.
     started_at = time.monotonic()
@@ -391,7 +391,7 @@ def greet(settings: Settings, name: str | None):
 
 @main.group("config")
 def config_group():
-    """Manage the five-clis configuration file."""
+    """Manage the grind configuration file."""
 
 
 @config_group.command("show")
@@ -442,7 +442,7 @@ _SHELL_CHOICES = [shell.value for shell in Shell]
 def completions(shell: str):
     """Print the shell completion script for SHELL.
 
-    Eval it in your shell config, e.g. ``eval "$(five-clis completions bash)"``.
+    Eval it in your shell config, e.g. ``eval "$(grind completions bash)"``.
     """
     from click.shell_completion import get_completion_class
 
@@ -460,10 +460,10 @@ def completions(shell: str):
 
 
 def _current_executable_path() -> str:
-    """Resolve the absolute path of the running five-clis executable.
+    """Resolve the absolute path of the running grind executable.
 
     ``sys.argv[0]`` is what the user actually invoked, so prefer it whenever it
-    names a real file: ``./five-clis update`` must update *that* copy, not a
+    names a real file: ``./grind update`` must update *that* copy, not a
     different one that happens to sit earlier on PATH. Fall back to a PATH
     lookup for the usual case, where argv[0] is the bare console-script name.
 
@@ -479,7 +479,7 @@ def _current_executable_path() -> str:
 
 @main.command()
 def update():
-    """Download and install the latest five-clis release over this executable."""
+    """Download and install the latest grind release over this executable."""
     click.echo(
         click.style("🔍 Checking for a newer release...", fg="cyan"),
         err=True,
@@ -498,7 +498,7 @@ def update():
         return
 
     click.echo(
-        click.style(f"✅ five-clis has been updated to v{detail}.", fg="green"),
+        click.style(f"✅ grind has been updated to v{detail}.", fg="green"),
         err=True,
     )
     # The completion scripts re-invoke the binary, so they track it for free.

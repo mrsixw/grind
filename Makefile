@@ -26,14 +26,14 @@ DESTDIR ?=
 build: .venv
 	uv sync --extra build
 	mkdir -p dist
-	uv run shiv -c five-clis -o dist/five-clis --python '/usr/bin/env python3' --preamble utils/preamble.py .
+	uv run shiv -c grind -o dist/grind --python '/usr/bin/env python3' --preamble utils/preamble.py .
 
 install: build
 	install -d "$(DESTDIR)$(BINDIR)"
-	install -m 755 dist/five-clis "$(DESTDIR)$(BINDIR)/five-clis"
+	install -m 755 dist/grind "$(DESTDIR)$(BINDIR)/grind"
 
 uninstall:
-	rm -f "$(DESTDIR)$(BINDIR)/five-clis"
+	rm -f "$(DESTDIR)$(BINDIR)/grind"
 
 release: build
 
@@ -43,7 +43,7 @@ test: .venv
 
 e2e: build
 	uv sync --extra test
-	FIVE_CLIS_E2E_REQUIRE=1 uv run pytest -v -m e2e tests/e2e
+	GRIND_E2E_REQUIRE=1 uv run pytest -v -m e2e tests/e2e
 
 # CI variant: deliberately does NOT depend on build, so it runs against the
 # artifact downloaded from the build job — the same bits the release ships.
@@ -51,7 +51,7 @@ e2e: build
 # suite cannot silently rot to green.
 e2e-ci: .venv
 	uv sync --extra test
-	FIVE_CLIS_E2E_REQUIRE=1 uv run pytest -v -m e2e tests/e2e
+	GRIND_E2E_REQUIRE=1 uv run pytest -v -m e2e tests/e2e
 
 lint: .venv docs-lint shellcheck spell
 	uv sync --extra lint
@@ -84,14 +84,14 @@ man: .venv
 	uv sync --extra build
 	mkdir -p man1
 	uv run python utils/generate_man_page.py man1
-	gzip -f man1/five-clis.1
+	gzip -f man1/grind.1
 
 completions: .venv
 	uv sync
 	mkdir -p completions
-	_FIVE_CLIS_COMPLETE=bash_source uv run five-clis > completions/five-clis.bash
-	sed -i.bak 's/_FIVE_CLIS_COMPLETE=bash_complete $$1)/_FIVE_CLIS_COMPLETE=bash_complete "$$1")/' completions/five-clis.bash
-	sed -i.bak 's/COMPREPLY+=($$value)/COMPREPLY+=("$$value")/' completions/five-clis.bash
-	rm -f completions/five-clis.bash.bak
-	_FIVE_CLIS_COMPLETE=zsh_source uv run five-clis > completions/_five-clis
-	_FIVE_CLIS_COMPLETE=fish_source uv run five-clis > completions/five-clis.fish
+	_GRIND_COMPLETE=bash_source uv run grind > completions/grind.bash
+	sed -i.bak 's/_GRIND_COMPLETE=bash_complete $$1)/_GRIND_COMPLETE=bash_complete "$$1")/' completions/grind.bash
+	sed -i.bak 's/COMPREPLY+=($$value)/COMPREPLY+=("$$value")/' completions/grind.bash
+	rm -f completions/grind.bash.bak
+	_GRIND_COMPLETE=zsh_source uv run grind > completions/_grind
+	_GRIND_COMPLETE=fish_source uv run grind > completions/grind.fish

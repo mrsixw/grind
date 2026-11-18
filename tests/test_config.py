@@ -1,6 +1,6 @@
 import pytest
 
-from fiveclis.config import (
+from grind.config import (
     _DEFAULT_CONFIG_CONTENT,
     _extract_option_blocks,
     _key_present_in_file,
@@ -17,7 +17,7 @@ def test_load_config_missing_explicit_path_raises(tmp_path):
 
 
 def test_load_config_no_search_path_hit_returns_empty(tmp_path, monkeypatch):
-    from fiveclis import config as cfg_mod
+    from grind import config as cfg_mod
 
     monkeypatch.setattr(cfg_mod, "get_config_paths", lambda: [tmp_path / "none.toml"])
     assert load_config() == {}
@@ -39,12 +39,12 @@ def test_load_config_invalid_toml_raises(tmp_path):
 
 
 def test_write_default_config_creates_file(tmp_path, monkeypatch):
-    from fiveclis import xdg
+    from grind import xdg
 
-    monkeypatch.setattr(xdg, "get_config_dir", lambda: tmp_path / "fiveclis")
-    from fiveclis import config as cfg_mod
+    monkeypatch.setattr(xdg, "get_config_dir", lambda: tmp_path / "grind")
+    from grind import config as cfg_mod
 
-    monkeypatch.setattr(cfg_mod, "get_config_dir", lambda: tmp_path / "fiveclis")
+    monkeypatch.setattr(cfg_mod, "get_config_dir", lambda: tmp_path / "grind")
     path = write_default_config()
     assert path.exists()
     assert "theme" in path.read_text()
@@ -96,7 +96,7 @@ def test_key_present_in_file_absent():
 
 
 def test_update_config_no_file(monkeypatch, tmp_path):
-    from fiveclis import config as cfg_mod
+    from grind import config as cfg_mod
 
     missing = tmp_path / "missing.toml"
     monkeypatch.setattr(cfg_mod, "get_config_paths", lambda: [missing])
@@ -105,7 +105,7 @@ def test_update_config_no_file(monkeypatch, tmp_path):
 
 
 def test_update_config_already_up_to_date(monkeypatch, tmp_path):
-    from fiveclis import config as cfg_mod
+    from grind import config as cfg_mod
 
     cfg_file = tmp_path / "config.toml"
     cfg_file.write_text(_DEFAULT_CONFIG_CONTENT)
@@ -117,7 +117,7 @@ def test_update_config_already_up_to_date(monkeypatch, tmp_path):
 
 
 def test_update_config_adds_missing_keys(monkeypatch, tmp_path):
-    from fiveclis import config as cfg_mod
+    from grind import config as cfg_mod
 
     cfg_file = tmp_path / "config.toml"
     cfg_file.write_text("# minimal config\n# theme = default\n")
@@ -136,7 +136,7 @@ def test_update_config_adds_missing_keys(monkeypatch, tmp_path):
 
 
 def test_update_config_preserves_modes(monkeypatch, tmp_path):
-    from fiveclis import config as cfg_mod
+    from grind import config as cfg_mod
 
     cfg_file = tmp_path / "config.toml"
     cfg_file.write_text("# minimal config\n")
