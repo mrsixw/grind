@@ -14,9 +14,9 @@ from importlib.metadata import EntryPoint
 
 import pytest
 
-from grind import providers as providers_mod
 from grind.constants import ENTRY_POINT_GROUP
 from grind.providers import Provider, ProviderError
+from grind.providers import registry as registry_mod
 from grind.tickets import ME, Comment, Ticket
 
 #: The statuses ``move`` accepts, and whether a ticket in each is open.
@@ -151,5 +151,5 @@ def pantry_fixture(monkeypatch) -> Shelf:
     entry_point = EntryPoint(
         name=Pantry.name, value=ENTRY_POINT_VALUE, group=ENTRY_POINT_GROUP
     )
-    monkeypatch.setattr(providers_mod, "entry_points", lambda group: [entry_point])
+    monkeypatch.setattr(registry_mod, "entry_points", lambda group: [entry_point])
     return shelf

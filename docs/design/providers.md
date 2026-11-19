@@ -5,16 +5,19 @@ How grind talks to several ticket systems through one set of commands.
 ## The shape
 
 ```text
-cli.py ──► providers.py ──► github.py   (built-in)
-   │           │        ──► jira.py     (built-in)
-   │           │        ──► entry points in group "grind.providers" (plugins)
+cli.py ──► providers/ ──► github.py   (built-in)
+   │           │      ──► jira.py     (built-in)
+   │           │      ──► entry points in group "grind.providers" (plugins)
    └──► tickets.py  ◄── every provider translates to and from this model
 ```
 
 - **`tickets.py`** is the vocabulary: `Ticket`, `Comment`, `ListQuery`,
   `TicketDraft`, `TicketChanges`. It imports nothing from the package.
-- **`providers.py`** holds the `Provider` interface, the `HttpProvider` base
-  class, the registry, and reference parsing.
+- **`providers/`** is the plugin API, all importable from `grind.providers`.
+  One module per job: `base.py` (the `Provider` interface and
+  `ProviderError`), `http.py` (the `HttpProvider` base class), `registry.py`
+  (built-ins, entry-point plugins, building sources) and `refs.py` (reference
+  parsing).
 - **`cli.py`** never names JIRA or GitHub. It resolves a source to a provider
   and speaks only the model. Adding a system never touches it.
 

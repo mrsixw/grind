@@ -10,7 +10,11 @@
 - `src/grind/` — package source code
   - `cli.py` — Click group entrypoint and the ticket commands. Never names a ticket system: it resolves a source to a provider and speaks only the model in `tickets.py`
   - `tickets.py` — the ticket model every provider translates to and from (`Ticket`, `Comment`, `ListQuery`, `TicketDraft`, `TicketChanges`)
-  - `providers.py` — the `Provider` plugin interface, the `HttpProvider` base class, the registry (built-ins plus `grind.providers` entry points), and reference parsing
+  - `providers/` — the plugin API, all importable from `grind.providers`
+    - `base.py` — the `Provider` interface and `ProviderError`
+    - `http.py` — the `HttpProvider` base class: URL, token from the environment, timeouts, error messages
+    - `registry.py` — built-ins plus `grind.providers` entry points, the plugin directory, and building sources from config
+    - `refs.py` — `<source>:<key>` reference parsing
   - `github.py` — GitHub Issues provider
   - `jira.py` — JIRA provider (Cloud REST v3, Server/Data Center REST v2)
   - `settings.py` — `Settings` dataclass resolved from flags + config file, received by subcommands via `@click.pass_obj`

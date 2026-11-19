@@ -3,7 +3,6 @@
 import pytest
 import requests
 
-from grind import providers as providers_mod
 from grind.providers import (
     HttpProvider,
     Provider,
@@ -13,6 +12,7 @@ from grind.providers import (
     plugin_dir,
     resolve_ref,
 )
+from grind.providers import registry as registry_mod
 from grind.tickets import ListQuery, Ticket, TicketChanges, TicketDraft
 
 
@@ -56,7 +56,7 @@ def plugins(monkeypatch):
 
     def install(**targets):
         eps = [FakeEntryPoint(name, target) for name, target in targets.items()]
-        monkeypatch.setattr(providers_mod, "entry_points", lambda group: eps)
+        monkeypatch.setattr(registry_mod, "entry_points", lambda group: eps)
 
     install()
     return install
@@ -129,7 +129,7 @@ def test_plugin_dir_is_put_on_sys_path_when_it_exists(monkeypatch, tmp_path):
     directory = tmp_path / "grind" / "plugins"
     directory.mkdir(parents=True)
     path = []
-    monkeypatch.setattr(providers_mod.sys, "path", path)
+    monkeypatch.setattr(registry_mod.sys, "path", path)
     available_providers()
     assert path == [str(directory)]
 
