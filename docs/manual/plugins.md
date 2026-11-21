@@ -14,6 +14,7 @@ from grind.tickets import ListQuery, Ticket
 class KettleProvider(HttpProvider):
     name = "kettle"                        # provider = "kettle" in the config
     default_token_env = ("KETTLE_TOKEN",)  # where the token is read from
+    scope_keys = ("board",)                # what a working context may override
 
     def _ticket(self, raw: dict) -> Ticket:
         return Ticket(
@@ -29,6 +30,9 @@ class KettleProvider(HttpProvider):
 
     def list_tickets(self, query: ListQuery) -> list[Ticket]:
         params = {"limit": query.limit, "q": query.text}
+        boards = query.containers or self.config_list("board")
+        if boards:
+            params["board"] = ",".join(boards)
         if query.mine:
             params["owner"] = "me"
         if query.state != "all":
@@ -117,6 +121,11 @@ tuple of whatever your system files tickets under (projects, boards, queues),
 one per `--in`, to be ORed together. Empty means "use the source's own scope".
 A system that can only search one at a time should raise `ProviderError` for
 more than one rather than silently picking the first.
+
+`scope_keys` lists the config keys that narrow what `list` searches. A
+[working context](options.md#working-contexts) may override those keys, and
+`mine`, on a source using your provider. Anything else it sets is refused.
+Leave it empty and a context can only choose mine or everyone's.
 
 ## Rules of the road
 

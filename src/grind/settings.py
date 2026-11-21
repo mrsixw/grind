@@ -10,6 +10,7 @@ import time
 from dataclasses import dataclass, field
 
 from .constants import DEFAULT_TABLE_STYLE
+from .contexts import Context
 from .ui import Theme, apply_seasonal_colour, seasonal_colour
 
 __all__ = [
@@ -38,6 +39,9 @@ class Settings:
     cake: bool = False
     pastry: bool = False
     debug_summary: bool = False
+    #: Every ``[contexts.<name>]`` in the config, and the one in force, if any.
+    contexts: dict[str, Context] = field(default_factory=dict)
+    context: Context | None = None
     #: When this invocation started, for the debug summary's elapsed row.
     #: monotonic, so a clock adjustment mid-run cannot produce a negative time.
     started_at: float = field(default_factory=time.monotonic)

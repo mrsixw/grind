@@ -51,6 +51,23 @@ Tickets are merged across sources and sorted by last update. If one source
 fails, the others are still printed, a warning goes to stderr, and the exit
 code is 1.
 
+## Working contexts
+
+A context narrows one source, so you can switch focus without typing the
+same flags every run:
+
+```bash
+grind context use grind        # just the grind repo, my tickets
+grind                          # lists only that
+grind context use mrsixw       # every mrsixw repo, everyone's tickets
+grind --context platform list  # a JIRA project group, this run only
+grind context list             # what is defined; ☕ marks the active one
+grind context use --none       # back to every source
+```
+
+Contexts are `[contexts.<name>]` tables in the config file. See
+[Working contexts](options.md#working-contexts).
+
 ## Reading a ticket
 
 ```bash
