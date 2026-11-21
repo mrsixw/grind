@@ -1,5 +1,6 @@
 import datetime
 
+import pytest
 from freezegun import freeze_time
 
 from grind import ui as ui_mod
@@ -17,6 +18,7 @@ from grind.ui import (
     SEASONAL_PALETTES,
     THEME_NAMES,
     THEMES,
+    Theme,
     apply_seasonal_colour,
     generate_terminal_url_anchor,
     get_random_cake_recipe,
@@ -95,6 +97,19 @@ def test_theme_apply_cycle(monkeypatch):
     result_0 = t.apply_cycle("a", 0)
     result_1 = t.apply_cycle("a", 1)
     assert result_0 != result_1
+
+
+@pytest.mark.parametrize("name", [n for n in THEME_NAMES if n != "mono"])
+def test_every_coloured_theme_gives_labels_and_values_distinct_colours(name):
+    theme = get_theme(name)
+    assert theme.label is not None and theme.value is not None
+    assert theme.apply("x", role="label") != theme.apply("x", role="value")
+
+
+def test_an_unset_label_borrows_the_accent_and_an_unset_value_the_primary():
+    theme = Theme(primary="blue", accent="green")
+    assert theme.apply("x", role="label") == theme.apply("x", role="accent")
+    assert theme.apply("x", role="value") == theme.apply("x", role="primary")
 
 
 def test_apply_seasonal_colour_off():
