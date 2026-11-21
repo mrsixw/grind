@@ -75,14 +75,24 @@ def stocked(pantry):
 # ── list ───────────────────────────────────────────────────────────────────
 
 
+def cells(line):
+    """Split one outline-table row into its stripped cell texts."""
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def table_rows(stdout):
+    """Return the header and body rows of an outline table, borders dropped."""
+    return [cells(line) for line in stdout.splitlines() if line.startswith("|")]
+
+
 def test_list_merges_sources_newest_first(grind, stocked):
     result = grind("list")
     assert result.exit_code == 0, result.output
-    lines = result.stdout.splitlines()
-    assert lines[0].split() == ["TICKET", "STATUS", "ASSIGNEE", "UPDATED", "TITLE"]
-    assert lines[1].startswith("work:PROJ-1")
-    assert lines[2].startswith("oss:acme/beans#7")
-    assert "Order more beans" in lines[1]
+    header, first, second = table_rows(result.stdout)
+    assert header == ["", "TICKET", "STATUS", "ASSIGNEE", "UPDATED", "TITLE"]
+    assert first[:2] == ["0", "work:PROJ-1"]
+    assert second[:2] == ["1", "oss:acme/beans#7"]
+    assert first[-1] == "Order more beans"
     assert "Grinding through your tickets" in result.stderr
     assert "Grinding" not in result.stdout
 
@@ -403,7 +413,9 @@ def test_list_is_coffee_coloured_by_default(tmp_path, monkeypatch, stocked):
             main, ["--config", str(cfg), "--no-update-check", "list"], color=True
         )
     assert result.exit_code == 0, result.output
-    header, *rows = result.stdout.splitlines()
+    top, header, rule, *rows, bottom = result.stdout.splitlines()
+    for border in (top, rule, bottom):
+        assert border.startswith("\x1b[38;5;180m")  # latte
     assert "\x1b[38;5;173m" in header  # caramel
     assert all(row.startswith("\x1b[38;5;137m") for row in rows)  # mocha
     assert "\x1b[36m" not in result.output  # no leftover template cyan
