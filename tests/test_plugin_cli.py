@@ -93,7 +93,9 @@ def test_list_merges_sources_newest_first(grind, stocked):
     assert first[:2] == ["0", "work:PROJ-1"]
     assert second[:2] == ["1", "oss:acme/beans#7"]
     assert first[-1] == "Order more beans"
-    assert "Grinding through your tickets" in result.stderr
+    assert (
+        "Grinding through open tickets assigned to you in oss, work..." in result.stderr
+    )
     assert "Grinding" not in result.stdout
 
 
