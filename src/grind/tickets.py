@@ -18,6 +18,12 @@ __all__ = [
 ]
 
 #: Assignee sentinel meaning "whoever the source's credentials belong to".
+#:
+#: ``grind assign REF`` with no user, and ``create --assignee @me``, pass this
+#: rather than a name, because "me" is spelled differently on every system and
+#: only the provider knows how to look it up: GitHub uses the token's login,
+#: JIRA the account ID (Cloud) or username (Server) from ``/myself``. A plugin
+#: that supports ``assign`` should handle it the same way.
 ME = "@me"
 
 #: The states ``ListQuery.state`` accepts.

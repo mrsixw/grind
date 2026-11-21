@@ -39,6 +39,17 @@ read-only plugin is complete and its limits are explained rather than crashing.
 ### Plugins are Python entry points, plus a plugin directory
 
 Third-party providers register under the `grind.providers` entry-point group.
+A hypothetical `grind-kettle` package would declare its class like this:
+
+```toml
+[project.entry-points."grind.providers"]
+kettle = "grind_kettle:KettleProvider"
+```
+
+and a source with `provider = "kettle"` would then use it.
+[Writing a provider](../manual/plugins.md) has the whole worked example: the
+class, the entry point, and installing it.
+
 grind is distributed as a shiv zipapp, whose bundled environment cannot see
 packages installed elsewhere, so `<XDG_DATA_HOME>/grind/plugins` is appended
 to `sys.path` before discovery. `pip install --target` into that directory is

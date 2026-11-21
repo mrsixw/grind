@@ -165,7 +165,9 @@ Config key: `theme = "default"`
 
 Apply seasonal ANSI colours based on the current date (enabled by default).
 On the holidays and cultural events of the chosen calendar they replace the
-theme's colours; on every other day the theme applies as usual.
+theme's colours; on every other day the theme applies as usual. The supported
+calendars, and the days each one marks, are listed under
+[`--seasonal-calendar`](#--seasonal-calendar).
 
 Config key: `seasonal-colours = true`
 
