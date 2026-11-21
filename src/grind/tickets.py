@@ -84,9 +84,9 @@ class ListQuery:
     state: str = "open"
     text: str = ""
     limit: int = 50
-    #: Project, repo or whatever the provider files tickets under. Empty means
-    #: the source's configured default, or everything.
-    container: str = ""
+    #: Projects, repos or whatever the provider files tickets under, ORed
+    #: together. Empty means the source's configured scope, or everything.
+    containers: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

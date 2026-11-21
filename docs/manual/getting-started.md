@@ -32,7 +32,13 @@ prefix of every ticket reference from that source.
 [sources.oss]
 provider = "github"
 repo = "acme/beans"      # optional: the default repository
+# repos = ["acme/beans", "acme/grounds"]  # or a group of repositories
+# org = "acme"           # or every repository an org or user owns
 ```
+
+`list` uses the most specific of these that is set: `repos` or `repo`, then
+`org`. See [Source configuration](options.md#source-configuration) for how
+`--in` overrides them.
 
 Create a token at **GitHub → Settings → Developer settings → Personal access
 tokens** with read and write access to issues, then export it:

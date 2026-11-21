@@ -17,7 +17,7 @@ List tickets across your sources. The default when no subcommand is given.
 | `--mine` / `--everyone` | Tickets assigned to you, or to anyone. Default: mine, unless the source sets `mine = false`. `--all` still works as an alias for `--everyone` |
 | `--state open\|closed\|all` | Which tickets to include. Default: `open` |
 | `-q`, `--query TEXT` | Free-text search |
-| `--in PROJECT` | Project or repository, overriding the source's default |
+| `--in PROJECT` | Project, repository (`owner/repo`) or GitHub org (`owner`), overriding the source's scope. Repeatable: values are ORed. JIRA takes one, for now |
 | `--limit N` | Most tickets to fetch per source. Config key: `limit = 50` |
 | `--format table\|json` | Output format. Config key: `format = "table"` |
 
@@ -134,6 +134,8 @@ provider = "github"
 repo = "owner/repo"              # optional default repository
 token-env = "GITHUB_TOKEN"       # default: GH_TOKEN, then GITHUB_TOKEN
 url = "https://api.github.com"   # change for GitHub Enterprise
+# repos = ["owner/a", "owner/b"] # or a group of repositories
+# org = "owner"                  # or every repo an org or user owns
 
 [sources.work]
 provider = "jira"
@@ -146,6 +148,13 @@ jql = "labels = backend"         # optional extra filter for list
 api-version = 3                  # 2 for Server / Data Center
 mine = false                     # list everyone's tickets by default
 ```
+
+A GitHub source's `list` is narrowed by the most specific scope it has:
+`--in`, then `repos` or `repo`, then `org`. Each replaces the ones below it,
+so `--in owner/x` on an `org` source lists only `owner/x`. `org` works for a
+personal account as well as an organisation. Whatever the scope, it is a single
+search, so a group of repos costs no extra requests. `create` always needs
+exactly one repository: `--in owner/repo`, `repo`, or a `repos` list of one.
 
 `mine` works on any source and defaults to `true`. `--mine` and `--everyone`
 override it for one run.

@@ -130,22 +130,22 @@ def test_list_unknown_source_is_an_error(grind, stocked):
 def test_list_passes_filters_through(grind, stocked):
     grind("list", "--all", "--state", "closed", "-q", "kettle", "--in", "acme/milk")
     (query,) = stocked.made("list", "oss")
-    assert (query.mine, query.state, query.text, query.container) == (
+    assert (query.mine, query.state, query.text, query.containers) == (
         False,
         "closed",
         "kettle",
-        "acme/milk",
+        ("acme/milk",),
     )
 
 
 def test_list_asks_for_your_open_tickets_by_default(grind, stocked):
     grind("list", "-s", "oss")
     (query,) = stocked.made("list")
-    assert (query.mine, query.state, query.text, query.container) == (
+    assert (query.mine, query.state, query.text, query.containers) == (
         True,
         "open",
         "",
-        "",
+        (),
     )
 
 
