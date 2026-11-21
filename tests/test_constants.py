@@ -54,11 +54,22 @@ def test_holiday_table_entries_are_valid_dates():
             datetime.date(year, month, day)  # raises ValueError if bogus
 
 
-def test_burger_recipes():
-    assert len(constants.BURGER_RECIPES) >= 4
-    titles = [r["title"] for r in constants.BURGER_RECIPES]
+def test_pastry_recipes_are_croissant_and_pain_au_chocolat():
+    titles = [r["title"] for r in constants.PASTRY_RECIPES]
+    assert any("Croissant" in t for t in titles)
+    assert any("Pain au Chocolat" in t for t in titles)
+    for recipe in constants.PASTRY_RECIPES:
+        assert recipe["source"], f"{recipe['title']} must credit its source"
+        assert recipe["source_url"].startswith(
+            "https://"
+        ), f"{recipe['title']} must link to its source"
+
+
+def test_coffee_recipes():
+    assert len(constants.COFFEE_RECIPES) >= 4
+    titles = [r["title"] for r in constants.COFFEE_RECIPES]
     assert len(titles) == len(set(titles))
-    for recipe in constants.BURGER_RECIPES:
+    for recipe in constants.COFFEE_RECIPES:
         assert recipe["source"], f"{recipe['title']} must credit its source"
         assert recipe["source_url"].startswith(
             "https://"

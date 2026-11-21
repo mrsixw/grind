@@ -20,9 +20,9 @@ import click
 from .constants import (
     BIRTHDAY,
     BIRTHDAY_NAME,
-    BURGER_RECIPES,
     CAKE_RECIPES,
     CHRISTMAS,
+    COFFEE_RECIPES,
     DIWALI,
     EID_AL_ADHA,
     EID_AL_FITR,
@@ -31,6 +31,7 @@ from .constants import (
     HOLI_RAINBOW,
     MID_AUTUMN,
     PASSOVER_START,
+    PASTRY_RECIPES,
     PRIDE_RAINBOW,
     ROSH_HASHANAH,
     SEASONAL_PALETTES,
@@ -50,15 +51,18 @@ __all__ = [
     "colour_grade_number",
     "echo_err",
     "generate_terminal_url_anchor",
-    "get_random_burger_recipe",
     "get_random_cake_recipe",
+    "get_random_coffee_recipe",
+    "get_random_pastry_recipe",
     "get_theme",
     "has_shown_holiday_gift",
     "is_birthday",
     "is_christmas",
     "mark_holiday_gift_shown",
-    "render_burger_recipe",
     "render_cake_recipe",
+    "render_coffee_recipe",
+    "render_pastry_recipe",
+    "seasonal_colour",
 ]
 
 _RESET = "\033[0m"
@@ -69,21 +73,31 @@ _RESET = "\033[0m"
 # ---------------------------------------------------------------------------
 
 
+#: A colour as ``click.style`` takes it: a name, or a 256-colour index.
+Colour = str | int | None
+
+
 @dataclass
 class Theme:
     """A named terminal colour theme."""
 
-    primary: str | None = "cyan"
-    accent: str | None = "yellow"
-    success: str | None = "green"
-    warn: str | None = "yellow"
-    error: str | None = "red"
-    muted: str | None = None
+    primary: Colour = "cyan"
+    accent: Colour = "yellow"
+    success: Colour = "green"
+    warn: Colour = "yellow"
+    error: Colour = "red"
+    muted: Colour = None
     cycle: list[str] = field(default_factory=list)
 
     def apply(self, text: str, role: str = "primary") -> str:
-        """Apply this theme's colour for *role* to *text* using click.style."""
-        colour = getattr(self, role, self.primary)
+        """Apply this theme's colour for *role* to *text* using click.style.
+
+        A role the theme leaves unset borrows the primary colour, so a theme
+        only has to spell out the roles it wants to be different.
+        """
+        colour = getattr(self, role, None)
+        if colour is None:
+            colour = self.primary
         if colour is None:
             return text
         return click.style(text, fg=colour)
@@ -97,13 +111,15 @@ class Theme:
 
 
 THEMES: dict[str, Theme] = {
+    # Coffee, in 256-colour browns chosen to read on dark and light
+    # backgrounds alike: a mocha body, caramel accents, latte for chatter.
     "default": Theme(
-        primary="cyan",
-        accent="yellow",
-        success="green",
-        warn="yellow",
-        error="red",
-        muted=None,
+        primary=137,  # mocha
+        accent=173,  # caramel
+        success=107,  # matcha
+        warn=179,  # honey
+        error=167,  # coffee cherry
+        muted=180,  # latte
         cycle=[],
     ),
     "dark": Theme(
@@ -383,20 +399,25 @@ def apply_seasonal_colour(text: str, index: int, calendar: str = "western") -> s
     Lists (December candy-cane, June Pride, Holi rainbow) cycle by *index*.
     Pass ``calendar="off"`` to disable entirely.
     """
-    if calendar == "off":
+    colour = seasonal_colour(index, calendar)
+    if colour is None:
         return text
-    calendar_fn = CALENDARS.get(calendar)
-    if calendar_fn is None:
-        return text
-    today = datetime.date.today()
-    result = calendar_fn(today)
-    if result is None:
-        return text
-    if isinstance(result, list):
-        colour = result[index % len(result)]
-    else:
-        colour = result
     return f"{colour}{text}{_RESET}"
+
+
+def seasonal_colour(index: int, calendar: str = "western") -> str | None:
+    """Return today's seasonal ANSI colour for row *index*, or None.
+
+    None means the calendar has nothing to celebrate today (or is ``off``),
+    so the caller should fall back to its theme.
+    """
+    calendar_fn = CALENDARS.get(calendar)
+    if calendar == "off" or calendar_fn is None:
+        return None
+    result = calendar_fn(datetime.date.today())
+    if isinstance(result, list):
+        return result[index % len(result)]
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -426,9 +447,14 @@ def echo_err(msg: str, colour: bool = True, fg: str = "yellow") -> None:
 # ---------------------------------------------------------------------------
 
 
-def get_random_burger_recipe() -> dict:
-    """Return a randomly chosen burger recipe from the curated collection."""
-    return random.choice(BURGER_RECIPES)
+def get_random_coffee_recipe() -> dict:
+    """Return a randomly chosen coffee recipe from the curated collection."""
+    return random.choice(COFFEE_RECIPES)
+
+
+def get_random_pastry_recipe() -> dict:
+    """Return a randomly chosen pastry recipe from the curated collection."""
+    return random.choice(PASTRY_RECIPES)
 
 
 def get_random_cake_recipe() -> dict:
@@ -464,12 +490,12 @@ def generate_terminal_url_anchor(url: str, url_text: str = "Link") -> str:
     return f"\033]8;;{url}\033\\{url_text}\033]8;;\033\\"
 
 
-def render_burger_recipe(
+def render_coffee_recipe(
     recipe: dict, *, occasion: str | None = None, colour: bool = True
 ) -> str:
-    """Render a burger recipe banner.
+    """Render a coffee recipe banner.
 
-    *occasion* is None for the ``--burger`` flag, or ``"christmas"`` for the
+    *occasion* is None for the ``--brew`` flag, or ``"christmas"`` for the
     once-a-year gift, which only changes the header and its colour.
 
     With *colour* on, the title links to the recipe it came from. With it off
@@ -480,9 +506,9 @@ def render_burger_recipe(
     if colour:
         title = generate_terminal_url_anchor(recipe["source_url"], title)
     if occasion == "christmas":
-        header = f"🍔 🎄 Merry Christmas! Here is a Christmas burger: {title} 🎁"
+        header = f"☕ 🎄 Merry Christmas! Here is a Christmas brew: {title} 🎁"
     else:
-        header = f"🍔 Secret Burger Recipe: {title}"
+        header = f"☕ Secret Coffee Recipe: {title}"
 
     source = (
         recipe["source"] if colour else f"{recipe['source']} — {recipe['source_url']}"
@@ -495,10 +521,35 @@ def render_burger_recipe(
             bold=True,
         ),
         click.style(f"   Style:    {recipe['style']}", fg="cyan"),
-        click.style(f"   Patty:    {recipe['patty']}", fg="white"),
-        click.style(f"   Toppings: {recipe['toppings']}", fg="white"),
-        click.style(f"   Cook:     {recipe['cook']}", fg="white"),
+        click.style(f"   Dose:     {recipe['dose']}", fg="white"),
+        click.style(f"   Grind:    {recipe['grind']}", fg="white"),
+        click.style(f"   Brew:     {recipe['brew']}", fg="white"),
         click.style(f"   Tip:      💡 {recipe['tip']}", fg="yellow"),
+        click.style(f"   Source:   {source}", fg="bright_black"),
+    ]
+    return "\n".join(lines)
+
+
+def render_pastry_recipe(recipe: dict, *, colour: bool = True) -> str:
+    """Render a pastry recipe banner for the ``--pastry`` flag.
+
+    Credited like the coffee recipes: with *colour* on the title links to the
+    source, and with it off the URL moves into the Source row.
+    """
+    title = recipe["title"]
+    if colour:
+        title = generate_terminal_url_anchor(recipe["source_url"], title)
+    source = (
+        recipe["source"] if colour else f"{recipe['source']} — {recipe['source_url']}"
+    )
+    lines = [
+        click.style(f"🥐 Secret Pastry Recipe: {title}", fg=173, bold=True),
+        click.style(f"   Style:    {recipe['style']}", fg=180),
+        click.style(f"   Dough:    {recipe['dough']}", fg="white"),
+        click.style(f"   Butter:   {recipe['butter']}", fg="white"),
+        click.style(f"   Shape:    {recipe['shape']}", fg="white"),
+        click.style(f"   Bake:     {recipe['bake']}", fg="white"),
+        click.style(f"   Tip:      💡 {recipe['tip']}", fg=179),
         click.style(f"   Source:   {source}", fg="bright_black"),
     ]
     return "\n".join(lines)

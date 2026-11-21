@@ -16,7 +16,9 @@ Feature: CLI contract
     And stdout names the binary
     And stdout contains "completions"
     And stdout contains "config"
-    And stdout contains "greet"
+    And stdout contains "list"
+    And stdout contains "create"
+    And stdout contains "sources"
 
   Scenario: An unknown option is a usage error on stderr
     When I run the CLI with `--definitely-not-an-option`
@@ -35,18 +37,6 @@ Feature: CLI contract
     Then the exit code is 2
     And stdout is empty
     And stderr contains "Invalid value"
-
-  Scenario: Progress goes to stderr and data goes to stdout
-    When I run the CLI with `--no-colour greet --name Ada`
-    Then the exit code is 0
-    And stdout contains "Hello, Ada!"
-    And stdout does not contain "Cooking up"
-    And stderr contains "Cooking up"
-
-  Scenario: No-colour output really carries no escapes
-    When I run the CLI with `--no-colour greet --name Ada`
-    Then the exit code is 0
-    And stdout carries no ANSI colour
 
   Scenario Outline: Completion scripts are evaluable by <shell>
     When I run the CLI with `completions <shell>`

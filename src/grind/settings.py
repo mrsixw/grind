@@ -9,7 +9,7 @@ parameters.
 import time
 from dataclasses import dataclass, field
 
-from .ui import Theme, apply_seasonal_colour
+from .ui import Theme, apply_seasonal_colour, seasonal_colour
 
 __all__ = [
     "Settings",
@@ -31,8 +31,9 @@ class Settings:
     cache_ttl: int = 300
     update_check: bool = True
     update_summary: bool = False
-    burger: bool = False
+    brew: bool = False
     cake: bool = False
+    pastry: bool = False
     debug_summary: bool = False
     #: When this invocation started, for the debug summary's elapsed row.
     #: monotonic, so a clock adjustment mid-run cannot produce a negative time.
@@ -41,11 +42,15 @@ class Settings:
     def paint(self, text: str, *, index: int = 0, role: str = "primary") -> str:
         """Colour *text* per the resolved colour/seasonal/theme settings.
 
-        Seasonal colours win over the theme when enabled; ``--no-colour``
-        disables both. *index* drives cycling palettes (Pride, Holi, …).
+        A seasonal colour wins on the days its calendar marks; every other
+        day the theme applies, so the default theme is what most days look
+        like. ``--no-colour`` disables both. *index* drives cycling palettes
+        (Pride, Holi, the rainbow theme).
         """
         if not self.colour:
             return text
-        if self.seasonal_colours:
+        if self.seasonal_colours and seasonal_colour(index, self.seasonal_calendar):
             return apply_seasonal_colour(text, index, calendar=self.seasonal_calendar)
+        if role == "primary" and self.theme.cycle:
+            return self.theme.apply_cycle(text, index)
         return self.theme.apply(text, role=role)

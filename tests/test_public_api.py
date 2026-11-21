@@ -17,14 +17,33 @@ PACKAGE = Path(__file__).resolve().parent.parent / "src" / "grind"
 
 
 def _modules():
-    return sorted(p for p in PACKAGE.glob("*.py") if p.name != "__init__.py")
+    """Every module in the package, subpackages included.
+
+    The package's own ``__init__.py`` only sets up the namespace; a
+    subpackage's ``__init__.py`` is where its public API is gathered, so it
+    is held to the same rules as any module.
+    """
+    top = PACKAGE / "__init__.py"
+    return sorted(p for p in PACKAGE.rglob("*.py") if p != top)
+
+
+def _id(path: Path) -> str:
+    return str(path.relative_to(PACKAGE))
+
+
+def _dotted(path: Path) -> str:
+    """The import name of *path*: ``grind.providers.http``, ``grind.providers``."""
+    parts = path.relative_to(PACKAGE).with_suffix("").parts
+    if parts[-1] == "__init__":
+        parts = parts[:-1]
+    return ".".join((PACKAGE.name, *parts))
 
 
 def _parsed(path: Path) -> ast.Module:
     return ast.parse(path.read_text(), filename=str(path))
 
 
-@pytest.mark.parametrize("path", _modules(), ids=lambda p: p.name)
+@pytest.mark.parametrize("path", _modules(), ids=_id)
 def test_no_private_names_imported_across_modules(path: Path):
     """A module must not import a `_name` from a sibling module.
 
@@ -43,7 +62,7 @@ def test_no_private_names_imported_across_modules(path: Path):
         if not sibling:
             continue
         offenders += [
-            f"{path.name}:{node.lineno} imports {alias.name} from "
+            f"{_id(path)}:{node.lineno} imports {alias.name} from "
             f"{'.' * node.level}{node.module or ''}"
             for alias in node.names
             if alias.name.startswith("_")
@@ -53,7 +72,7 @@ def test_no_private_names_imported_across_modules(path: Path):
     )
 
 
-@pytest.mark.parametrize("path", _modules(), ids=lambda p: p.name)
+@pytest.mark.parametrize("path", _modules(), ids=_id)
 def test_no_private_attribute_access_across_modules(path: Path):
     """A module must not reach a sibling's `_name` via attribute access.
 
@@ -70,7 +89,7 @@ def test_no_private_attribute_access_across_modules(path: Path):
         for alias in node.names
     }
     offenders = [
-        f"{path.name}:{node.lineno} reads {node.value.id}.{node.attr}"
+        f"{_id(path)}:{node.lineno} reads {node.value.id}.{node.attr}"
         for node in ast.walk(tree)
         if isinstance(node, ast.Attribute)
         and isinstance(node.value, ast.Name)
@@ -82,7 +101,7 @@ def test_no_private_attribute_access_across_modules(path: Path):
     )
 
 
-@pytest.mark.parametrize("path", _modules(), ids=lambda p: p.name)
+@pytest.mark.parametrize("path", _modules(), ids=_id)
 def test_every_module_declares_all(path: Path):
     """Each module states its public surface, rather than implying it.
 
@@ -96,25 +115,25 @@ def test_every_module_declares_all(path: Path):
         if isinstance(node, ast.Assign)
         and any(isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets)
     ]
-    assert declared, f"{path.name} has no __all__"
+    assert declared, f"{_id(path)} has no __all__"
 
 
-@pytest.mark.parametrize("path", _modules(), ids=lambda p: p.name)
+@pytest.mark.parametrize("path", _modules(), ids=_id)
 def test_all_entries_exist_and_are_public(path: Path):
     """`__all__` must not name anything private or absent.
 
     A stale entry would make `from module import *` raise at import time, so
     this fails fast in CI instead.
     """
-    module = __import__(f"grind.{path.stem}", fromlist=["__all__"])
+    module = __import__(_dotted(path), fromlist=["__all__"])
     exported = getattr(module, "__all__", [])
 
     # Plain alphabetical, enforced here rather than by RUF022, whose
     # SCREAMING_CASE-then-CamelCase-then-snake_case grouping is harder to
     # scan and disagrees with sorted().
-    assert exported == sorted(exported), f"{path.name}: __all__ is not sorted"
-    assert len(exported) == len(set(exported)), f"{path.name}: __all__ has duplicates"
+    assert exported == sorted(exported), f"{_id(path)}: __all__ is not sorted"
+    assert len(exported) == len(set(exported)), f"{_id(path)}: __all__ has duplicates"
 
     for name in exported:
-        assert not name.startswith("_"), f"{path.name}: __all__ exports private {name}"
-        assert hasattr(module, name), f"{path.name}: __all__ names missing {name}"
+        assert not name.startswith("_"), f"{_id(path)}: __all__ exports private {name}"
+        assert hasattr(module, name), f"{_id(path)}: __all__ names missing {name}"

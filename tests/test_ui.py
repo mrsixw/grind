@@ -3,7 +3,12 @@ import datetime
 from freezegun import freeze_time
 
 from grind import ui as ui_mod
-from grind.constants import BIRTHDAY_NAME, BURGER_RECIPES, CAKE_RECIPES
+from grind.constants import (
+    BIRTHDAY_NAME,
+    CAKE_RECIPES,
+    COFFEE_RECIPES,
+    PASTRY_RECIPES,
+)
 from grind.ui import (
     CALENDAR_NAMES,
     CALENDARS,
@@ -14,15 +19,17 @@ from grind.ui import (
     THEMES,
     apply_seasonal_colour,
     generate_terminal_url_anchor,
-    get_random_burger_recipe,
     get_random_cake_recipe,
+    get_random_coffee_recipe,
+    get_random_pastry_recipe,
     get_theme,
     has_shown_holiday_gift,
     is_birthday,
     is_christmas,
     mark_holiday_gift_shown,
-    render_burger_recipe,
     render_cake_recipe,
+    render_coffee_recipe,
+    render_pastry_recipe,
 )
 
 
@@ -162,24 +169,24 @@ def test_off_calendar_returns_text_untouched():
 
 
 def test_recipe_collections_share_a_shape():
-    burger_fields = {
+    coffee_fields = {
         "title",
         "style",
-        "patty",
-        "toppings",
-        "cook",
+        "dose",
+        "grind",
+        "brew",
         "tip",
         "source",
         "source_url",
     }
-    for recipe in BURGER_RECIPES:
-        assert burger_fields <= set(recipe)
+    for recipe in COFFEE_RECIPES:
+        assert coffee_fields <= set(recipe)
     for recipe in CAKE_RECIPES:
         assert {"title", "style", "batter", "frosting", "bake", "tip"} <= set(recipe)
 
 
 def test_random_recipes_come_from_the_collections():
-    assert get_random_burger_recipe() in BURGER_RECIPES
+    assert get_random_coffee_recipe() in COFFEE_RECIPES
     assert get_random_cake_recipe() in CAKE_RECIPES
 
 
@@ -199,25 +206,25 @@ def test_is_christmas():
     assert not is_christmas(datetime.date(2026, 12, 24))
 
 
-def test_render_burger_recipe_credits_its_source():
-    rendered = render_burger_recipe(BURGER_RECIPES[0])
-    assert BURGER_RECIPES[0]["title"] in rendered
-    assert BURGER_RECIPES[0]["source"] in rendered
-    assert "Secret Burger Recipe" in rendered
+def test_render_coffee_recipe_credits_its_source():
+    rendered = render_coffee_recipe(COFFEE_RECIPES[0])
+    assert COFFEE_RECIPES[0]["title"] in rendered
+    assert COFFEE_RECIPES[0]["source"] in rendered
+    assert "Secret Coffee Recipe" in rendered
 
 
-def test_render_burger_recipe_links_the_title():
-    recipe = BURGER_RECIPES[0]
-    rendered = render_burger_recipe(recipe)
+def test_render_coffee_recipe_links_the_title():
+    recipe = COFFEE_RECIPES[0]
+    rendered = render_coffee_recipe(recipe)
     anchor = generate_terminal_url_anchor(recipe["source_url"], recipe["title"])
     assert anchor in rendered
 
 
-def test_render_burger_recipe_without_colour_shows_the_url_instead():
+def test_render_coffee_recipe_without_colour_shows_the_url_instead():
     # OSC 8 has no business in output that may be piped or logged, so the
     # credit falls back to a plain URL in the Source row rather than vanishing.
-    recipe = BURGER_RECIPES[0]
-    rendered = render_burger_recipe(recipe, colour=False)
+    recipe = COFFEE_RECIPES[0]
+    rendered = render_coffee_recipe(recipe, colour=False)
     assert "\033]8;;" not in rendered
     assert recipe["source_url"] in rendered
 
@@ -229,10 +236,10 @@ def test_terminal_url_anchor_wraps_the_text_not_the_url():
     assert anchor.endswith("\033]8;;\033\\")
 
 
-def test_render_burger_recipe_christmas_header():
-    rendered = render_burger_recipe(BURGER_RECIPES[0], occasion="christmas")
+def test_render_coffee_recipe_christmas_header():
+    rendered = render_coffee_recipe(COFFEE_RECIPES[0], occasion="christmas")
     assert "Merry Christmas" in rendered
-    assert "Secret Burger Recipe" not in rendered
+    assert "Secret Coffee Recipe" not in rendered
 
 
 def test_render_cake_recipe_birthday_header():
@@ -267,3 +274,30 @@ def test_corrupt_holiday_gift_state_shows_the_gift_again(tmp_path):
     # Showing a gift twice beats swallowing it for a whole year.
     (tmp_path / "birthday_gift.json").write_text("{not json")
     assert not has_shown_holiday_gift("birthday", datetime.date(2026, 1, 8), tmp_path)
+
+
+def test_pastry_recipes_share_a_shape():
+    fields = {"title", "style", "dough", "butter", "shape", "bake", "tip"}
+    for recipe in PASTRY_RECIPES:
+        assert fields | {"source", "source_url"} <= set(recipe)
+
+
+def test_random_pastry_comes_from_the_collection():
+    assert get_random_pastry_recipe() in PASTRY_RECIPES
+
+
+def test_render_pastry_recipe_credits_and_links_its_source():
+    recipe = PASTRY_RECIPES[0]
+    rendered = render_pastry_recipe(recipe)
+    assert "🥐 Secret Pastry Recipe" in rendered
+    assert (
+        generate_terminal_url_anchor(recipe["source_url"], recipe["title"]) in rendered
+    )
+    assert recipe["source"] in rendered
+
+
+def test_render_pastry_recipe_without_colour_shows_the_url_instead():
+    recipe = PASTRY_RECIPES[0]
+    rendered = render_pastry_recipe(recipe, colour=False)
+    assert "\033]8;;" not in rendered
+    assert recipe["source_url"] in rendered

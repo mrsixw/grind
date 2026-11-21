@@ -1,5 +1,44 @@
 # Troubleshooting
 
+## "No sources configured"
+
+grind has nowhere to fetch tickets from. Run `grind config init`, then add a
+`[sources.<name>]` table — see [Getting started](getting-started.md).
+
+## "No token for source ..."
+
+The environment variable holding that source's token is unset. The message
+names the variables it tried. Set one, or point the source at a different
+variable with `token-env`.
+
+## A source answers 401, 403 or 404
+
+- **401** — the token is wrong or expired. For JIRA Cloud, check `user` is
+  the email address the API token belongs to.
+- **403** — the token is valid but lacks permission for that action, such as
+  a read-only token used with `create`.
+- **404** — the ticket does not exist, or the token cannot see it. Both look
+  the same from outside.
+
+`grind sources --check` tests every source at once.
+
+## "Which source is ... from?"
+
+With more than one source configured, references need their prefix:
+`work:PROJ-123`, not `PROJ-123`.
+
+## JIRA will not `move` a ticket
+
+JIRA workflows only allow certain transitions from each status. The error
+lists the ones available from where the ticket is now.
+
+## A provider plugin does not show up in `grind sources`
+
+- It must be installed where grind can import it:
+  `pip install --target "$(grind sources --plugin-dir)" <package>`.
+- Its `pyproject.toml` must register an entry point in the `grind.providers`
+  group. See [Writing a provider](plugins.md).
+
 ## No colour output
 
 If you see no colours, check:
