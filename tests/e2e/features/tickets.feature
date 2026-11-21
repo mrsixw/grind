@@ -22,6 +22,14 @@ Feature: Tickets from the built binary
     And stdout contains "built-in"
     And stdout contains "https://jira.invalid"
 
+  Scenario: A missing token is reported before any network call
+    Given a config file with GitHub and JIRA sources
+    When I run the CLI with `--no-colour list`
+    Then the exit code is 1
+    And stdout is empty
+    And stderr contains "No token for source 'oss'"
+    And stderr contains "No token for source 'work'"
+
   Scenario: An ambiguous reference is refused before any network call
     Given a config file with GitHub and JIRA sources
     When I run the CLI with `--no-colour show PROJ-1`
