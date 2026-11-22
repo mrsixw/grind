@@ -1,9 +1,7 @@
-"""The ticket commands, driven through Click against an in-memory provider.
+"""The ticket commands, driven through Click with HTTP faked underneath.
 
-The pantry provider (``tests/pantry.py``) is installed as a real plugin, so
-these tests cover what the CLI does with the provider interface: which calls
-it makes, with what, and what it prints. The built-in providers are stubs and
-are tested in their own files.
+These go through the built-in GitHub and JIRA providers. The same commands
+against a plugin are in ``test_plugin_cli.py``.
 """
 
 import json
@@ -13,48 +11,65 @@ from click.testing import CliRunner
 from freezegun import freeze_time
 
 from grind.cli import main
-from grind.tickets import ME, Comment, Ticket, TicketChanges
-from tests.pantry import pantry_fixture  # noqa: F401  (the pantry fixture)
+from grind.jira import text_to_adf
+
+GH = "https://api.github.com"
+JIRA = "https://acme.atlassian.net/rest/api/3"
 
 CONFIG = """
 [sources.oss]
-provider = "pantry"
+provider = "github"
+repo = "acme/beans"
 
 [sources.work]
-provider = "pantry"
+provider = "jira"
+url = "https://acme.atlassian.net"
+user = "ada@acme.example"
+project = "PROJ"
 """
 
-BEANS = Ticket(
-    source="oss",
-    key="acme/beans#7",
-    title="Descale the espresso machine",
-    status="open",
-    assignee="ada",
-    reporter="grace",
-    labels=("chore",),
-    url="https://pantry.example/oss/7",
-    created="2026-10-01T09:00:00Z",
-    updated="2026-11-01T09:00:00Z",
-    body="It is furring up.",
-)
-ORDER = Ticket(
-    source="work",
-    key="PROJ-1",
-    title="Order more beans",
-    status="To Do",
-    type="Task",
-    assignee="Ada Lovelace",
-    updated="2026-11-05T09:00:00.000+0000",
-    body="Nearly out.",
-    comments=(Comment(author="Grace", body="Ordered."),),
-)
+
+def gh_issue(number=7, **overrides):
+    return {
+        "number": number,
+        "title": "Descale the espresso machine",
+        "state": "open",
+        "repository_url": f"{GH}/repos/acme/beans",
+        "html_url": f"https://github.com/acme/beans/issues/{number}",
+        "updated_at": "2026-11-01T09:00:00Z",
+        "created_at": "2026-10-01T09:00:00Z",
+        "user": {"login": "grace"},
+        "assignees": [{"login": "ada"}],
+        "labels": [{"name": "chore"}],
+        "body": "It is furring up.",
+        **overrides,
+    }
+
+
+def jira_issue(key="PROJ-1", **fields):
+    return {
+        "key": key,
+        "fields": {
+            "summary": "Order more beans",
+            "status": {"name": "To Do", "statusCategory": {"key": "new"}},
+            "issuetype": {"name": "Task"},
+            "assignee": {"displayName": "Ada Lovelace"},
+            "labels": [],
+            "updated": "2026-11-05T09:00:00.000+0000",
+            "description": text_to_adf("Nearly out."),
+            **fields,
+        },
+    }
 
 
 @pytest.fixture
-def grind(tmp_path, monkeypatch, pantry):
+def grind(tmp_path, monkeypatch):
     """Invoke grind against a two-source config, quietly and without colour."""
+    monkeypatch.setenv("GH_TOKEN", "gh-tok")
+    monkeypatch.setenv("JIRA_TOKEN", "jira-tok")
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     cfg = tmp_path / "config.toml"
+    cfg.write_text(CONFIG)
 
     def run(*args, config=CONFIG, **kwargs):
         cfg.write_text(config)
@@ -65,15 +80,16 @@ def grind(tmp_path, monkeypatch, pantry):
 
 
 @pytest.fixture
-def stocked(pantry):
-    pantry.add(BEANS, ORDER)
-    return pantry
+def both(requests_mock):
+    requests_mock.get(f"{GH}/search/issues", json={"items": [gh_issue()]})
+    requests_mock.get(f"{JIRA}/search/jql", json={"issues": [jira_issue()]})
+    return requests_mock
 
 
 # ── list ───────────────────────────────────────────────────────────────────
 
 
-def test_list_merges_sources_newest_first(grind, stocked):
+def test_list_merges_sources_newest_first(grind, both):
     result = grind("list")
     assert result.exit_code == 0, result.output
     lines = result.stdout.splitlines()
@@ -85,7 +101,7 @@ def test_list_merges_sources_newest_first(grind, stocked):
     assert "Grinding" not in result.stdout
 
 
-def test_list_json_is_pure_json_on_stdout(grind, stocked):
+def test_list_json_is_pure_json_on_stdout(grind, both):
     result = grind("list", "--format", "json")
     payload = json.loads(result.stdout)
     assert [t["ref"] for t in payload] == ["work:PROJ-1", "oss:acme/beans#7"]
@@ -93,76 +109,65 @@ def test_list_json_is_pure_json_on_stdout(grind, stocked):
     assert payload[0]["is_open"] is True
 
 
-def test_list_format_and_limit_come_from_the_config_file(grind, stocked):
+def test_list_format_and_limit_come_from_the_config_file(grind, both):
     result = grind("list", config='format = "json"\nlimit = 5\n' + CONFIG)
     assert json.loads(result.stdout)
-    assert {query.limit for query in stocked.made("list")} == {5}
+    assert both.request_history[0].qs["per_page"] == ["5"]
 
 
-def test_list_can_be_narrowed_to_one_source(grind, stocked):
+def test_list_can_be_narrowed_to_one_source(grind, both):
     result = grind("list", "--source", "work")
     assert "work:PROJ-1" in result.stdout
     assert "oss:" not in result.stdout
-    assert [src for src, _, _ in stocked.calls] == ["work"]
+    assert both.call_count == 1
 
 
-def test_list_unknown_source_is_an_error(grind, stocked):
+def test_list_unknown_source_is_an_error(grind, both):
     result = grind("list", "-s", "nope")
     assert result.exit_code == 1
     assert "Unknown source 'nope'. Configured: oss, work." in result.stderr
-    assert stocked.calls == []
+    assert both.call_count == 0
 
 
-def test_list_passes_filters_through(grind, stocked):
+def test_list_passes_filters_through(grind, both):
     grind("list", "--all", "--state", "closed", "-q", "kettle", "--in", "acme/milk")
-    (query,) = stocked.made("list", "oss")
-    assert (query.mine, query.state, query.text, query.container) == (
-        False,
-        "closed",
-        "kettle",
-        "acme/milk",
-    )
+    github_q = both.request_history[0].qs["q"][0]
+    assert github_q == "is:issue repo:acme/milk state:closed kettle"
 
 
-def test_list_asks_for_your_open_tickets_by_default(grind, stocked):
-    grind("list", "-s", "oss")
-    (query,) = stocked.made("list")
-    assert (query.mine, query.state, query.text, query.container) == (
-        True,
-        "open",
-        "",
-        "",
-    )
-
-
-def test_list_empty_says_so_on_stderr_and_leaves_stdout_empty(grind, pantry):
+def test_list_empty_says_so_on_stderr_and_leaves_stdout_empty(grind, requests_mock):
+    requests_mock.get(f"{GH}/search/issues", json={"items": []})
     result = grind("list", "-s", "oss")
     assert result.exit_code == 0
     assert result.stdout == ""
     assert "Nothing to grind" in result.stderr
 
 
-def test_list_empty_json_is_still_valid_json(grind, pantry):
+def test_list_empty_json_is_still_valid_json(grind, requests_mock):
+    requests_mock.get(f"{GH}/search/issues", json={"items": []})
     result = grind("list", "-s", "oss", "--format", "json")
     assert json.loads(result.stdout) == []
 
 
-def test_one_failing_source_does_not_hide_the_others(grind, stocked):
-    stocked.failures["work"] = "The work pantry is locked."
+def test_one_failing_source_does_not_hide_the_others(grind, requests_mock):
+    requests_mock.get(f"{GH}/search/issues", json={"items": [gh_issue()]})
+    requests_mock.get(f"{JIRA}/search/jql", status_code=401)
     result = grind("list")
     assert result.exit_code == 1
     assert "oss:acme/beans#7" in result.stdout
-    assert "The work pantry is locked." in result.stderr
+    assert "Source 'work' answered 401" in result.stderr
 
 
-def test_long_titles_are_clipped_to_the_terminal(grind, pantry):
-    pantry.add(Ticket(source="oss", key="1", title="x" * 500, status="open"))
+def test_long_titles_are_clipped_to_the_terminal(grind, requests_mock):
+    requests_mock.get(
+        f"{GH}/search/issues", json={"items": [gh_issue(title="x" * 500)]}
+    )
     result = grind("list", "-s", "oss")
     assert max(len(line) for line in result.stdout.splitlines()) <= 120
     assert "…" in result.stdout
 
 
-def test_debug_summary_counts_requests_per_source(grind, stocked):
+def test_debug_summary_counts_requests_per_source(grind, both):
     result = grind("--debug-summary", "list")
     assert "Requests to oss:" in result.stderr
     assert "Requests to work:" in result.stderr
@@ -172,51 +177,53 @@ def test_debug_summary_counts_requests_per_source(grind, stocked):
 # ── cache ──────────────────────────────────────────────────────────────────
 
 
-def test_cache_serves_the_second_list_without_a_request(grind, stocked):
+def test_cache_serves_the_second_list_without_a_request(grind, both):
     first = grind("--cache", "list")
     second = grind("--cache", "list")
-    assert len(stocked.made("list")) == 2  # one per source, first run only
+    assert both.call_count == 2  # one per source, first run only
     assert second.stdout == first.stdout
 
 
-def test_no_cache_always_asks(grind, stocked):
+def test_no_cache_always_asks(grind, both):
     grind("list")
     grind("list")
-    assert len(stocked.made("list")) == 4
+    assert both.call_count == 4
 
 
-def test_cache_is_keyed_on_the_query(grind, stocked):
+def test_cache_is_keyed_on_the_query(grind, both):
     grind("--cache", "list", "-s", "oss")
     grind("--cache", "list", "-s", "oss", "--state", "closed")
-    assert len(stocked.made("list")) == 2
+    assert both.call_count == 2
 
 
-def test_cache_is_keyed_on_the_source_config(grind, stocked):
+def test_cache_is_keyed_on_the_source_config(grind, both):
     grind("--cache", "list", "-s", "oss")
-    changed = CONFIG.replace(
-        '[sources.oss]\nprovider = "pantry"\n',
-        '[sources.oss]\nprovider = "pantry"\nshelf = "b"\n',
-    )
-    grind("--cache", "list", "-s", "oss", config=changed)
-    assert len(stocked.made("list")) == 2
+    grind("--cache", "list", "-s", "oss", config=CONFIG.replace("beans", "milk"))
+    assert both.call_count == 2
 
 
 # ── show ───────────────────────────────────────────────────────────────────
 
 
-def test_show_renders_the_ticket(grind, stocked):
-    result = grind("show", "oss:acme/beans#7")
+def test_show_renders_the_ticket(grind, requests_mock):
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+    result = grind("show", "oss:#7")
     assert result.exit_code == 0, result.output
     assert "oss:acme/beans#7  Descale the espresso machine" in result.stdout
     assert "Assignee: ada" in result.stdout
     assert "Labels:   chore" in result.stdout
     assert "It is furring up." in result.stdout
-    assert stocked.made("get") == ["acme/beans#7"]
 
 
-def test_show_comments_and_json(grind, stocked):
-    plain = grind("show", "work:PROJ-1")
-    assert "Ordered." not in plain.stdout
+def test_show_comments_and_json(grind, requests_mock):
+    with_comment = jira_issue(
+        comment={
+            "comments": [
+                {"author": {"displayName": "Grace"}, "body": text_to_adf("Ordered.")}
+            ]
+        }
+    )
+    requests_mock.get(f"{JIRA}/issue/PROJ-1", json=with_comment)
     text = grind("show", "work:PROJ-1", "--comments")
     assert "💬 Grace" in text.stdout
     assert "Ordered." in text.stdout
@@ -224,58 +231,63 @@ def test_show_comments_and_json(grind, stocked):
     assert json.loads(as_json.stdout)["comments"][0]["body"] == "Ordered."
 
 
-def test_show_ambiguous_ref_asks_for_a_source(grind, stocked):
+def test_show_ambiguous_ref_asks_for_a_source(grind, requests_mock):
     result = grind("show", "PROJ-1")
     assert result.exit_code == 1
     assert "<source>:<key>" in result.stderr
-    assert stocked.calls == []
+    assert requests_mock.call_count == 0
 
 
-def test_show_prefix_is_optional_with_one_source(grind, stocked):
-    result = grind("show", "PROJ-1", config='[sources.work]\nprovider = "pantry"\n')
-    assert result.exit_code == 0, result.output
-    assert "work:PROJ-1" in result.stdout
-
-
-def test_show_not_found_is_a_clean_error(grind, stocked):
+def test_show_not_found_is_a_clean_error(grind, requests_mock):
+    requests_mock.get(f"{JIRA}/issue/PROJ-404", status_code=404)
     result = grind("show", "work:PROJ-404")
     assert result.exit_code == 1
-    assert "Source 'work' has no ticket PROJ-404." in result.stderr
+    assert "answered 404" in result.stderr
     assert result.stdout == ""
 
 
 # ── create ─────────────────────────────────────────────────────────────────
 
 
-def test_create_prints_only_the_ref_on_stdout(grind, pantry):
+def test_create_prints_only_the_ref_on_stdout(grind, requests_mock):
+    requests_mock.post(f"{GH}/repos/acme/beans/issues", json=gh_issue(8))
     result = grind("create", "-s", "oss", "-t", "Buy filters", "-l", "shop")
     assert result.exit_code == 0, result.output
-    assert result.stdout == "oss:1\n"
+    assert result.stdout == "oss:acme/beans#8\n"
     assert "Freshly ground" in result.stderr
-    (draft,) = pantry.made("create")
-    assert (draft.title, draft.body, draft.labels) == ("Buy filters", "", ("shop",))
+    assert requests_mock.last_request.json() == {
+        "title": "Buy filters",
+        "body": "",
+        "labels": ["shop"],
+    }
 
 
-def test_create_passes_type_container_and_assignee(grind, pantry):
-    grind("create", "-s", "work", "-t", "T", "--type", "Bug", "--in", "OPS", "-a", ME)
-    (draft,) = pantry.made("create")
-    assert (draft.type, draft.container, draft.assignee) == ("Bug", "OPS", ME)
-
-
-def test_create_reads_the_body_from_stdin(grind, pantry):
+def test_create_reads_the_body_from_stdin(grind, requests_mock):
+    requests_mock.post(f"{JIRA}/issue", json={"key": "PROJ-9"})
+    requests_mock.get(f"{JIRA}/issue/PROJ-9", json=jira_issue("PROJ-9"))
     result = grind(
-        "create", "-s", "work", "-t", "T", "--body-file", "-", input="from stdin"
+        "create",
+        "-s",
+        "work",
+        "-t",
+        "T",
+        "--type",
+        "Bug",
+        "--body-file",
+        "-",
+        input="from stdin",
     )
-    assert result.stdout == "work:1\n"
-    (draft,) = pantry.made("create")
-    assert draft.body == "from stdin"
+    assert result.stdout == "work:PROJ-9\n"
+    posted = next(r for r in requests_mock.request_history if r.method == "POST")
+    assert posted.json()["fields"]["description"] == text_to_adf("from stdin")
+    assert posted.json()["fields"]["issuetype"] == {"name": "Bug"}
 
 
-def test_create_needs_a_source_when_several_are_configured(grind, pantry):
+def test_create_needs_a_source_when_several_are_configured(grind, requests_mock):
     result = grind("create", "-t", "T")
     assert result.exit_code == 1
     assert "Which source? Pass --source. Configured: oss, work." in result.stderr
-    assert pantry.calls == []
+    assert requests_mock.call_count == 0
 
 
 def test_create_needs_a_title(grind):
@@ -297,47 +309,57 @@ def test_body_and_body_file_together_is_a_usage_error(grind, tmp_path):
 # ── edit, comment, assign, move ────────────────────────────────────────────
 
 
-def test_edit_sends_the_changes(grind, stocked):
+def test_edit_sends_the_changes(grind, requests_mock):
+    requests_mock.put(f"{JIRA}/issue/PROJ-1", status_code=204)
+    requests_mock.get(f"{JIRA}/issue/PROJ-1", json=jira_issue())
     result = grind("edit", "work:PROJ-1", "-t", "New", "--add-label", "urgent")
     assert result.exit_code == 0, result.output
     assert result.stdout == "work:PROJ-1\n"
     assert "Updated work:PROJ-1" in result.stderr
-    assert stocked.made("update") == [
-        ("PROJ-1", TicketChanges(title="New", add_labels=("urgent",)))
-    ]
+    put = next(r for r in requests_mock.request_history if r.method == "PUT")
+    assert put.json() == {
+        "fields": {"summary": "New"},
+        "update": {"labels": [{"add": "urgent"}]},
+    }
 
 
-def test_edit_with_nothing_to_change_is_a_usage_error(grind, stocked):
+def test_edit_with_nothing_to_change_is_a_usage_error(grind, requests_mock):
     result = grind("edit", "work:PROJ-1")
     assert result.exit_code == 2
     assert "Nothing to change" in result.stderr
-    assert stocked.calls == []
+    assert requests_mock.call_count == 0
 
 
-def test_comment(grind, stocked):
-    result = grind("comment", "oss:acme/beans#7", "Done.")
+def test_comment(grind, requests_mock):
+    requests_mock.post(
+        f"{GH}/repos/acme/beans/issues/7/comments", json={"body": "Done."}
+    )
+    result = grind("comment", "oss:#7", "Done.")
     assert result.exit_code == 0, result.output
     assert result.stdout == ""
-    assert "Comment added to oss:acme/beans#7" in result.stderr
-    assert stocked.made("comment") == [("acme/beans#7", "Done.")]
+    assert "Comment added to oss:#7" in result.stderr
+    assert requests_mock.last_request.json() == {"body": "Done."}
 
 
-def test_empty_comment_is_refused(grind, stocked):
-    result = grind("comment", "oss:acme/beans#7", "   ")
+def test_empty_comment_is_refused(grind, requests_mock):
+    result = grind("comment", "oss:#7", "   ")
     assert result.exit_code == 2
-    assert stocked.calls == []
+    assert requests_mock.call_count == 0
 
 
-def test_assign_defaults_to_me(grind, stocked):
-    result = grind("assign", "oss:acme/beans#7")
+def test_assign_defaults_to_me(grind, requests_mock):
+    requests_mock.get(f"{GH}/user", json={"login": "ada"})
+    requests_mock.patch(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+    result = grind("assign", "oss:#7")
     assert result.exit_code == 0, result.output
-    assert stocked.made("assign") == [("acme/beans#7", ME)]
+    assert requests_mock.last_request.json() == {"assignees": ["ada"]}
     assert "now assigned to ada" in result.stderr
 
 
-def test_assign_nobody(grind, stocked):
-    result = grind("assign", "oss:acme/beans#7", "--nobody")
-    assert stocked.made("assign") == [("acme/beans#7", None)]
+def test_assign_nobody(grind, requests_mock):
+    requests_mock.patch(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(assignees=[]))
+    result = grind("assign", "oss:#7", "--nobody")
+    assert requests_mock.last_request.json() == {"assignees": []}
     assert "now assigned to nobody" in result.stderr
 
 
@@ -345,18 +367,20 @@ def test_assign_user_and_nobody_conflict(grind):
     assert grind("assign", "oss:#7", "grace", "--nobody").exit_code == 2
 
 
-def test_move(grind, stocked):
-    result = grind("move", "oss:acme/beans#7", "closed")
+def test_move(grind, requests_mock):
+    requests_mock.patch(
+        f"{GH}/repos/acme/beans/issues/7", json=gh_issue(state="closed")
+    )
+    result = grind("move", "oss:#7", "done")
     assert result.exit_code == 0, result.output
     assert result.stdout == "oss:acme/beans#7\n"
     assert "is now closed" in result.stderr
-    assert stocked.made("move") == [("acme/beans#7", "closed")]
 
 
-def test_move_to_an_impossible_status_is_a_clean_error(grind, stocked):
-    result = grind("move", "oss:acme/beans#7", "In Progress")
+def test_move_to_an_impossible_status_is_a_clean_error(grind, requests_mock):
+    result = grind("move", "oss:#7", "In Progress")
     assert result.exit_code == 1
-    assert "Available: open, closed." in result.stderr
+    assert "open, closed, not-planned" in result.stderr
 
 
 # ── sources ────────────────────────────────────────────────────────────────
@@ -365,17 +389,18 @@ def test_move_to_an_impossible_status_is_a_clean_error(grind, stocked):
 def test_sources_lists_sources_and_providers(grind):
     result = grind("sources")
     assert result.exit_code == 0, result.output
-    assert "oss" in result.stdout and "work" in result.stdout
-    assert "plugin (tests.pantry:Pantry)" in result.stdout
-    assert "github" in result.stdout and "built-in" in result.stdout
+    assert "oss" in result.stdout and "https://api.github.com" in result.stdout
+    assert "work" in result.stdout and "https://acme.atlassian.net" in result.stdout
+    assert "built-in" in result.stdout
 
 
-def test_sources_check_reports_each_source_and_fails_if_any_does(grind, pantry):
-    pantry.failures["work"] = "The work pantry is locked."
+def test_sources_check_reports_each_source_and_fails_if_any_does(grind, requests_mock):
+    requests_mock.get(f"{GH}/user", json={"login": "ada"})
+    requests_mock.get(f"{JIRA}/myself", status_code=401)
     result = grind("sources", "--check")
     assert result.exit_code == 1
     assert "✅ ada" in result.stdout
-    assert "❌ The work pantry is locked." in result.stdout
+    assert "❌ Source 'work' answered 401" in result.stdout
 
 
 def test_sources_plugin_dir(grind, monkeypatch, tmp_path):
@@ -390,8 +415,11 @@ def test_a_bad_source_config_is_a_clean_error(grind):
     assert "Unknown provider 'trello'" in result.stderr
 
 
-def test_list_is_coffee_coloured_by_default(tmp_path, monkeypatch, stocked):
+@pytest.mark.usefixtures("both")
+def test_list_is_coffee_coloured_by_default(tmp_path, monkeypatch):
     """The table, its header and the progress line all wear the coffee theme."""
+    monkeypatch.setenv("GH_TOKEN", "gh-tok")
+    monkeypatch.setenv("JIRA_TOKEN", "jira-tok")
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.delenv("GRIND_NO_COLOUR", raising=False)
     cfg = tmp_path / "config.toml"
@@ -405,3 +433,9 @@ def test_list_is_coffee_coloured_by_default(tmp_path, monkeypatch, stocked):
     assert "\x1b[38;5;173m" in header  # caramel
     assert all(row.startswith("\x1b[38;5;137m") for row in rows)  # mocha
     assert "\x1b[36m" not in result.output  # no leftover template cyan
+
+
+def test_tokens_never_reach_the_output(grind, both):
+    result = grind("--debug-summary", "list", "--format", "json")
+    assert "gh-tok" not in result.output
+    assert "jira-tok" not in result.output
