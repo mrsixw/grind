@@ -1,4 +1,8 @@
-"""The ticket commands, driven through Click with HTTP faked underneath."""
+"""The ticket commands, driven through Click with HTTP faked underneath.
+
+These go through the built-in GitHub and JIRA providers. The same commands
+against a plugin are in ``test_plugin_cli.py``.
+"""
 
 import json
 
