@@ -22,8 +22,6 @@ from dataclasses import asdict
 from enum import StrEnum, auto
 
 import click
-from tabulate import tabulate
-from wcwidth import wcswidth
 
 # Imported for their side effect: each registers a built-in provider.
 from . import github, jira  # noqa: F401
@@ -48,6 +46,7 @@ from .providers import (
     resolve_ref,
 )
 from .settings import Settings
+from .tables import render_table
 from .tickets import ME, STATES, ListQuery, Ticket, TicketChanges, TicketDraft
 from .ui import (
     CALENDAR_NAMES,
@@ -413,14 +412,6 @@ def finish_run(
 # ── Tickets ─────────────────────────────────────────────────────────────────
 
 _FORMATS = ("table", "json")
-#: What shutil assumes when stdout is not a terminal (a pipe, a test runner).
-_FALLBACK_TERMINAL_SIZE = (120, 24)
-#: The narrowest a shrunk column gets, so titles stay readable in a tiny window.
-_MIN_SHRINK_WIDTH = 20
-#: Cells taken by the "…" that marks a clipped cell.
-_ELLIPSIS_WIDTH = 1
-#: breakfast numbers its rows; grind does too, so the two read alike.
-_SHOW_INDEX = True
 _NO_SOURCES = (
     "No sources configured, so there is nothing to grind. Run "
     f"`{BINARY_NAME} config init` and add a [sources.<name>] table."
@@ -500,97 +491,13 @@ def _short_date(stamp: str) -> str:
     return stamp[:10]
 
 
-def _clip(text: str, width: int) -> str:
-    """Clip *text* to *width* terminal cells, ending in an ellipsis if cut."""
-    if wcswidth(text) <= width:
-        return text
-    clipped = ""
-    for char in text:
-        if wcswidth(clipped + char) > width - _ELLIPSIS_WIDTH:
-            break
-        clipped += char
-    return clipped + "…"
-
-
-def _is_rule(line: str) -> bool:
-    """Report whether *line* is a table border rather than a header or row.
-
-    Every header and row holds at least one letter or digit (a ticket ref, a
-    source name); borders are punctuation and box-drawing characters only.
-    This holds for every style in TABLE_STYLES without knowing its layout.
-    """
-    return not any(char.isalnum() for char in line)
-
-
-def _paint_table(settings: Settings, table: str) -> str:
-    """Colour a rendered table: muted borders, a bold accent header, and
-    rows in the primary colour (cycling, for themes and seasons that cycle).
-    """
-    if not settings.colour:
-        return table
-    lines = []
-    header_done = False
-    row = 0
-    for line in table.splitlines():
-        if _is_rule(line):
-            lines.append(settings.theme.apply(line, role="muted"))
-        elif not header_done:
-            header_done = True
-            lines.append(click.style(settings.paint(line, role="accent"), bold=True))
-        else:
-            lines.append(settings.paint(line, index=row))
-            row += 1
-    return "\n".join(lines)
-
-
-def _render_table(
-    settings: Settings,
-    headers: list[str],
-    rows: list[list[str]],
-    *,
-    shrink: int | None = None,
-) -> str:
-    """Draw *rows* in the configured table style, coloured per the theme.
-
-    *shrink* names the column to clip so the table fits the terminal: grind
-    measures the drawn table and takes the overflow out of that column, which
-    avoids depending on how each tabulate style pads its cells.
-    """
-    columns = shutil.get_terminal_size(_FALLBACK_TERMINAL_SIZE).columns
-
-    def draw(body: list[list[str]]) -> str:
-        return tabulate(
-            body,
-            headers=headers,
-            tablefmt=settings.table_style,
-            showindex=_SHOW_INDEX,
-            disable_numparse=True,
-        )
-
-    # tabulate strips each cell, so measure and clip the text it will draw.
-    rows = [[str(cell).strip() for cell in row] for row in rows]
-    table = draw(rows)
-    if shrink is not None and rows:
-        width = max(wcswidth(line) for line in table.splitlines())
-        overflow = width - columns
-        if overflow > 0:
-            longest = max(wcswidth(row[shrink]) for row in rows)
-            budget = max(_MIN_SHRINK_WIDTH, longest - overflow)
-            clipped = [
-                [*row[:shrink], _clip(row[shrink], budget), *row[shrink + 1 :]]
-                for row in rows
-            ]
-            table = draw(clipped)
-    return _paint_table(settings, table)
-
-
 def _render_tickets(settings: Settings, tickets: list[Ticket]) -> str:
     rows = [
         [t.ref, t.status, t.assignee or "—", _short_date(t.updated), t.title]
         for t in tickets
     ]
     headers = ["TICKET", "STATUS", "ASSIGNEE", "UPDATED", "TITLE"]
-    return _render_table(settings, headers, rows, shrink=headers.index("TITLE"))
+    return render_table(settings, headers, rows, shrink=headers.index("TITLE"))
 
 
 def _render_ticket(settings: Settings, ticket: Ticket) -> str:
@@ -956,12 +863,12 @@ def list_sources(settings: Settings, check: bool, show_plugin_dir: bool):
         rows.append(row)
     if rows:
         headers = ["SOURCE", "PROVIDER", "URL"] + (["CHECK"] if check else [])
-        click.echo(_render_table(settings, headers, rows))
+        click.echo(render_table(settings, headers, rows))
     else:
         click.echo(_NO_SOURCES, err=True)
     click.echo("")
     click.echo(
-        _render_table(
+        render_table(
             settings, ["PROVIDER", "FROM"], [list(p) for p in providers.items()]
         )
     )
