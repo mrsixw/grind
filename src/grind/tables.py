@@ -84,8 +84,11 @@ def render_table(
     - **Fitting the terminal.** *shrink* names the column to clip, with "…",
       when the table is wider than the terminal. The drawn table is measured
       and the overflow taken out of that column, which avoids depending on how
-      each style pads its cells. tabulate's own ``maxcolwidths`` wraps instead,
-      which would spread one row over several lines.
+      each style pads its cells. The column never shrinks below
+      ``_MIN_SHRINK_WIDTH``, so in a very narrow terminal the table can still
+      be too wide and the terminal wraps it. tabulate's own ``maxcolwidths``
+      wraps the cell instead, in every style grind offers, which would spread
+      one row over several lines.
     """
     columns = shutil.get_terminal_size(_FALLBACK_TERMINAL_SIZE).columns
 
