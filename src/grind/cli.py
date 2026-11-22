@@ -1349,7 +1349,7 @@ def context_list(settings: Settings):
         [_ACTIVE_MARK if name == active else "", name, context.describe()]
         for name, context in settings.contexts.items()
     ]
-    click.echo(_render_table(settings, ["", "CONTEXT", "NARROWS"], rows))
+    click.echo(render_table(settings, ["", "CONTEXT", "NARROWS"], rows))
 
 
 @context_group.command("use")
