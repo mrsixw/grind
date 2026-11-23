@@ -262,7 +262,8 @@ Print the context in force and what it narrows.
 
 ### `context list`
 
-List the defined contexts. ☕ marks the active one.
+List the defined contexts. ☕ marks the active one, or `*` with
+[`--no-emoji`](#--emoji----no-emoji).
 
 ### `context use NAME` / `context use --none`
 
@@ -361,8 +362,9 @@ prints:
 - the emoji at the end of the progress line, which then ends in its dots:
   `Grinding through open tickets assigned to you in oss, work...`
 - the emoji in messages: tickets created, edited, commented on, assigned or
-  moved, "Nothing to grind", source warnings, `config` and `update` messages,
-  the update notice and the debug summary
+  moved, "Nothing to grind", source and context warnings, `context use`,
+  `config` and `update` messages, the update notice and the debug summary
+- in `context list`, the ☕ that marks the active context, which becomes `*`
 - in `sources --check`, the ✅ and ❌. A failure reads `error: <reason>`
   instead, so it still stands out
 - the birthday and Christmas recipes that appear by themselves

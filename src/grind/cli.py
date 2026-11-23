@@ -78,6 +78,7 @@ from .ui import (
     render_cake_recipe,
     render_coffee_recipe,
     render_pastry_recipe,
+    with_emoji,
 )
 from .updater import UpdateStatus, check_for_update, perform_update
 
@@ -317,10 +318,14 @@ def main(
             SECTION_STYLES,
         )
         contexts = load_contexts(cfg)
+        show_emoji = resolve_option(emoji, cfg, "emoji", True)
         # The context commands are how a bad choice gets fixed, so a bad name
         # must not stop them from running.
         context = _choose_context(
-            contexts, context_name, strict=ctx.invoked_subcommand != "context"
+            contexts,
+            context_name,
+            strict=ctx.invoked_subcommand != "context",
+            emoji=show_emoji,
         )
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
@@ -340,7 +345,7 @@ def main(
         colour=not (no_colour or cfg.get("no-colour", False)),
         table_style=style,
         section_style=layout,
-        emoji=resolve_option(emoji, cfg, "emoji", True),
+        emoji=show_emoji,
         progress=resolve_option(progress, cfg, "progress", True),
         contexts=contexts,
         context=context,
@@ -382,7 +387,9 @@ def _warn_misplaced_settings(settings: Settings) -> None:
         )
 
 
-def _choose_context(contexts: dict, flagged: str | None, *, strict: bool = True):
+def _choose_context(
+    contexts: dict, flagged: str | None, *, strict: bool = True, emoji: bool = True
+):
     """Return the context in force: the flag or env var, else the stored one.
 
     A name the user typed and got wrong is an error when *strict*, and a
@@ -394,18 +401,19 @@ def _choose_context(contexts: dict, flagged: str | None, *, strict: bool = True)
             return contexts[flagged]
         if strict:
             raise ContextError(_unknown_context(flagged, contexts))
-        click.echo(f"⚠️  {_unknown_context(flagged, contexts)} Ignored.", err=True)
+        warning = f"{_unknown_context(flagged, contexts)} Ignored."
+        click.echo(with_emoji("⚠️", warning, emoji), err=True)
         return None
     stored = read_active_context()
     if stored is None:
         return None
     if stored not in contexts:
-        click.echo(
-            f"⚠️  The active context '{stored}' is no longer in your config, so "
+        warning = (
+            f"The active context '{stored}' is no longer in your config, so "
             f"it is ignored. Pick another with `{BINARY_NAME} context use NAME`, "
-            f"or clear it with `{BINARY_NAME} context use --none`.",
-            err=True,
+            f"or clear it with `{BINARY_NAME} context use --none`."
         )
+        click.echo(with_emoji("⚠️", warning, emoji), err=True)
         return None
     return contexts[stored]
 
@@ -1306,6 +1314,8 @@ def list_sources(settings: Settings, check: bool, show_plugin_dir: bool):
 
 #: Marks the active context in ``context list``.
 _ACTIVE_MARK = "☕"
+#: The mark with emoji off.
+_ACTIVE_MARK_PLAIN = "*"
 
 
 @main.group("context", invoke_without_command=True)
@@ -1345,8 +1355,9 @@ def context_list(settings: Settings):
         )
         return
     active = settings.context.name if settings.context else None
+    mark = _ACTIVE_MARK if settings.emoji else _ACTIVE_MARK_PLAIN
     rows = [
-        [_ACTIVE_MARK if name == active else "", name, context.describe()]
+        [mark if name == active else "", name, context.describe()]
         for name, context in settings.contexts.items()
     ]
     click.echo(render_table(settings, ["", "CONTEXT", "NARROWS"], rows))
@@ -1377,7 +1388,10 @@ def context_use(settings: Settings, name: str | None, clear: bool):
     write_active_context(name)
     click.echo(
         settings.theme.apply(
-            f"☕ Now working in '{name}' ({context.describe()}).", role="success"
+            settings.with_emoji(
+                "☕", f"Now working in '{name}' ({context.describe()})."
+            ),
+            role="success",
         ),
         err=True,
         color=settings.colour,

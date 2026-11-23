@@ -176,6 +176,25 @@ def test_context_list_marks_the_active_one(grind):
     assert rows == {"grind": "", "mrsixw": "", "platform": "☕", "split": ""}
 
 
+def test_without_emoji_the_context_commands_use_none(grind):
+    use = grind("--no-emoji", "context", "use", "platform")
+    assert use.stderr.startswith("Now working in 'platform'")
+    rows = {
+        line.split("|")[3].strip(): line.split("|")[2].strip()
+        for line in grind("--no-emoji", "context", "list").stdout.splitlines()
+        if line.startswith("|") and "CONTEXT" not in line
+    }
+    assert rows == {"grind": "", "mrsixw": "", "platform": "*", "split": ""}
+
+
+def test_without_emoji_the_context_warnings_use_none(grind, requests_mock):
+    flagged = grind("--no-emoji", "--context", "missing", "context", "list")
+    assert flagged.stderr.startswith("Unknown context 'missing'")
+    write_active_context("gone")
+    stored = grind("--no-emoji", "list")
+    assert "\nThe active context 'gone'" in "\n" + stored.stderr
+
+
 # ── create ─────────────────────────────────────────────────────────────────
 
 
