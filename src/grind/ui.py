@@ -76,6 +76,9 @@ _RESET = "\033[0m"
 #: A colour as ``click.style`` takes it: a name, or a 256-colour index.
 Colour = str | int | None
 
+#: The role an unset role borrows from before it falls back to ``primary``.
+_ROLE_FALLBACKS = {"label": "accent"}
+
 
 @dataclass
 class Theme:
@@ -87,15 +90,22 @@ class Theme:
     warn: Colour = "yellow"
     error: Colour = "red"
     muted: Colour = None
+    #: A field name in ``show``; *value* is what follows it. A pair chosen to
+    #: contrast a little and sit well together.
+    label: Colour = None
+    value: Colour = None
     cycle: list[str] = field(default_factory=list)
 
     def apply(self, text: str, role: str = "primary") -> str:
         """Apply this theme's colour for *role* to *text* using click.style.
 
-        A role the theme leaves unset borrows the primary colour, so a theme
-        only has to spell out the roles it wants to be different.
+        A role the theme leaves unset borrows from the role it is closest to
+        (``label`` from ``accent``), and then from the primary colour, so a
+        theme only has to spell out the roles it wants to be different.
         """
         colour = getattr(self, role, None)
+        if colour is None and role in _ROLE_FALLBACKS:
+            colour = getattr(self, _ROLE_FALLBACKS[role], None)
         if colour is None:
             colour = self.primary
         if colour is None:
@@ -120,6 +130,8 @@ THEMES: dict[str, Theme] = {
         warn=179,  # honey
         error=167,  # coffee cherry
         muted=180,  # latte
+        label=173,  # caramel
+        value=180,  # latte
         cycle=[],
     ),
     "dark": Theme(
@@ -129,6 +141,8 @@ THEMES: dict[str, Theme] = {
         warn="bright_yellow",
         error="bright_red",
         muted=None,
+        label="bright_magenta",
+        value="bright_white",
         cycle=[],
     ),
     "light": Theme(
@@ -138,6 +152,8 @@ THEMES: dict[str, Theme] = {
         warn="yellow",
         error="red",
         muted=None,
+        label="blue",
+        value="black",
         cycle=[],
     ),
     "mono": Theme(
@@ -147,6 +163,8 @@ THEMES: dict[str, Theme] = {
         warn=None,
         error=None,
         muted=None,
+        label=None,
+        value=None,
         cycle=[],
     ),
     "rainbow": Theme(
@@ -156,6 +174,8 @@ THEMES: dict[str, Theme] = {
         warn="yellow",
         error="red",
         muted=None,
+        label="magenta",
+        value="cyan",
         cycle=PRIDE_RAINBOW,
     ),
 }

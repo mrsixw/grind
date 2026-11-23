@@ -412,6 +412,11 @@ def finish_run(
 # ── Tickets ─────────────────────────────────────────────────────────────────
 
 _FORMATS = ("table", "json")
+#: Cells a ``show`` field label is padded to, so the values line up.
+_FACT_LABEL_WIDTH = 10
+#: Palette positions for labels and values on days a seasonal palette cycles.
+_LABEL_INDEX = 0
+_VALUE_INDEX = 1
 _NO_SOURCES = (
     "No sources configured, so there is nothing to grind. Run "
     f"`{BINARY_NAME} config init` and add a [sources.<name>] table."
@@ -500,6 +505,22 @@ def _render_tickets(settings: Settings, tickets: list[Ticket]) -> str:
     return render_table(settings, headers, rows, shrink=headers.index("TITLE"))
 
 
+def _render_fact(settings: Settings, label: str, value: str) -> str:
+    """One ``show`` field: a bold label and its value, in the theme's pair.
+
+    On a holiday whose palette cycles (December, Pride, Holi) the indices give
+    the label and value neighbouring colours. Most holidays have a single
+    colour, and there the bold is what keeps the label apart from its value.
+    """
+    name = f"{label + ':':<{_FACT_LABEL_WIDTH}}"
+    if not settings.colour:
+        return f"  {name}{value}"
+    painted = click.style(
+        settings.paint(name, role="label", index=_LABEL_INDEX), bold=True
+    )
+    return f"  {painted}{settings.paint(value, role='value', index=_VALUE_INDEX)}"
+
+
 def _render_ticket(settings: Settings, ticket: Ticket) -> str:
     title = f"{ticket.ref}  {ticket.title}"
     painted = settings.paint(title, role="accent")
@@ -514,7 +535,9 @@ def _render_ticket(settings: Settings, ticket: Ticket) -> str:
         "Updated": _short_date(ticket.updated),
         "URL": ticket.url,
     }
-    lines += [f"  {label + ':':<10}{value}" for label, value in facts.items() if value]
+    lines += [
+        _render_fact(settings, label, value) for label, value in facts.items() if value
+    ]
     if ticket.body:
         lines += ["", ticket.body.rstrip()]
     for comment in ticket.comments:
