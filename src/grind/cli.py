@@ -22,7 +22,6 @@ from dataclasses import asdict
 from enum import StrEnum, auto
 
 import click
-from tabulate import tabulate
 
 # Imported for their side effect: each registers a built-in provider.
 from . import github, jira  # noqa: F401
@@ -33,7 +32,9 @@ from .constants import (
     APP_NAME,
     BINARY_NAME,
     DEFAULT_CACHE_TTL,
+    DEFAULT_TABLE_STYLE,
     ENVVAR_PREFIX,
+    TABLE_STYLES,
 )
 from .logger import configure as configure_logging
 from .providers import (
@@ -45,6 +46,7 @@ from .providers import (
     resolve_ref,
 )
 from .settings import Settings
+from .tables import render_table
 from .tickets import ME, STATES, ListQuery, Ticket, TicketChanges, TicketDraft
 from .ui import (
     CALENDAR_NAMES,
@@ -128,6 +130,12 @@ def resolve_option(flag_value, cfg: dict, key: str, default):
     help="Which cultural calendar drives seasonal colours (default: western).",
 )
 @click.option(
+    "--table-style",
+    type=click.Choice(TABLE_STYLES),
+    default=None,
+    help=f"How tables are drawn. Default: {DEFAULT_TABLE_STYLE}.",
+)
+@click.option(
     "--no-colour",
     "no_colour",
     is_flag=True,
@@ -206,6 +214,7 @@ def main(
     theme,
     seasonal_colours,
     seasonal_calendar,
+    table_style,
     no_colour,
     cache_enabled,
     cache_ttl,
@@ -245,6 +254,9 @@ def main(
     try:
         cfg = load_config(config_path)
         ttl = parse_ttl(resolve_option(cache_ttl, cfg, "cache-ttl", DEFAULT_CACHE_TTL))
+        style = _table_style(
+            resolve_option(table_style, cfg, "table-style", DEFAULT_TABLE_STYLE)
+        )
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
 
@@ -261,6 +273,7 @@ def main(
             seasonal_calendar, cfg, "seasonal-calendar", "western"
         ),
         colour=not (no_colour or cfg.get("no-colour", False)),
+        table_style=style,
         cache_enabled=resolve_option(cache_enabled, cfg, "cache", False),
         cache_ttl=ttl,
         update_check=not (no_update_check or cfg.get("no-update-check", False)),
@@ -274,6 +287,20 @@ def main(
 
     if ctx.invoked_subcommand is None:
         ctx.invoke(list_tickets)
+
+
+def _table_style(name: str) -> str:
+    """Validate a table style that may have come from the config file.
+
+    The flag is checked by its ``click.Choice``; the config value is not, and
+    a typo there must fail with the choices rather than a tabulate traceback.
+    """
+    if name not in TABLE_STYLES:
+        raise ValueError(
+            f"Invalid table-style '{name}' in config. "
+            f"Choose from: {', '.join(TABLE_STYLES)}."
+        )
+    return name
 
 
 def _notify_update(settings: Settings) -> None:
@@ -464,35 +491,13 @@ def _short_date(stamp: str) -> str:
     return stamp[:10]
 
 
-def _clip(text: str, width: int) -> str:
-    return text if len(text) <= width else text[: width - 1] + "…"
-
-
-def _render_table(settings: Settings, tickets: list[Ticket]) -> str:
-    # The title gets whatever the terminal has left once the fixed columns
-    # are paid for, so a narrow window wraps nothing.
-    columns = shutil.get_terminal_size((120, 24)).columns
+def _render_tickets(settings: Settings, tickets: list[Ticket]) -> str:
     rows = [
         [t.ref, t.status, t.assignee or "—", _short_date(t.updated), t.title]
         for t in tickets
     ]
     headers = ["TICKET", "STATUS", "ASSIGNEE", "UPDATED", "TITLE"]
-    # Laid out by hand rather than by tabulate, whose header padding is not
-    # part of its contract: the title's budget has to be exact.
-    widths = [max(len(headers[i]), *(len(row[i]) for row in rows)) for i in range(4)]
-    title_width = max(20, columns - sum(widths) - 2 * len(widths))
-    table = "\n".join(
-        "  ".join(
-            [cell.ljust(width) for cell, width in zip(row, widths)]
-            + [_clip(row[4], title_width)]
-        )
-        for row in [headers, *rows]
-    )
-    header, *body = table.splitlines()
-    painted = settings.paint(header, role="accent")
-    lines = [click.style(painted, bold=True) if settings.colour else header]
-    lines += [settings.paint(line, index=i) for i, line in enumerate(body)]
-    return "\n".join(lines)
+    return render_table(settings, headers, rows, shrink=headers.index("TITLE"))
 
 
 def _render_ticket(settings: Settings, ticket: Ticket) -> str:
@@ -632,7 +637,7 @@ def list_tickets(
     if output_format == "json":
         click.echo(json.dumps([t.to_dict() for t in tickets], indent=2))
     elif tickets:
-        click.echo(_render_table(settings, tickets))
+        click.echo(_render_tickets(settings, tickets))
     elif not failed:
         click.echo(
             "☕ Nothing to grind. The cup is empty — put the kettle on.", err=True
@@ -858,13 +863,13 @@ def list_sources(settings: Settings, check: bool, show_plugin_dir: bool):
         rows.append(row)
     if rows:
         headers = ["SOURCE", "PROVIDER", "URL"] + (["CHECK"] if check else [])
-        click.echo(tabulate(rows, headers=headers, tablefmt="plain"))
+        click.echo(render_table(settings, headers, rows))
     else:
         click.echo(_NO_SOURCES, err=True)
     click.echo("")
     click.echo(
-        tabulate(
-            list(providers.items()), headers=["PROVIDER", "FROM"], tablefmt="plain"
+        render_table(
+            settings, ["PROVIDER", "FROM"], [list(p) for p in providers.items()]
         )
     )
     finish_run(settings, item_count=len(rows), extra=_request_rows(sources))

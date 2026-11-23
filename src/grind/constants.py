@@ -17,6 +17,7 @@ __all__ = [
     "CHRISTMAS",
     "COFFEE_RECIPES",
     "DEFAULT_CACHE_TTL",
+    "DEFAULT_TABLE_STYLE",
     "DIWALI",
     "EID_AL_ADHA",
     "EID_AL_FITR",
@@ -35,6 +36,7 @@ __all__ = [
     "ROSH_HASHANAH",
     "SEASONAL_PALETTES",
     "SUKKOT_START",
+    "TABLE_STYLES",
     "TTL_SUFFIX_MAP",
     "UPDATE_CHECK_REPO",
     "USER_AGENT",
@@ -74,6 +76,15 @@ USER_AGENT = f"{BINARY_NAME} (+https://github.com/{UPDATE_CHECK_REPO})"
 
 DEFAULT_CACHE_TTL = 300
 TTL_SUFFIX_MAP = {"s": 1, "m": 60, "h": 3600}
+
+# ── Tables ─────────────────────────────────────────────────────────────────
+
+#: The table styles ``--table-style`` accepts. Each is a tabulate format name
+#: and is passed straight through as ``tablefmt``. The same set is offered by
+#: every app built from the five-clis template (mrsixw/five-clis#81).
+TABLE_STYLES = ("outline", "rounded_outline", "grid", "simple", "github", "plain")
+#: breakfast's style, so the sibling apps look alike out of the box.
+DEFAULT_TABLE_STYLE = "outline"
 
 # ── UI & theming ───────────────────────────────────────────────────────────
 

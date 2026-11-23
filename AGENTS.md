@@ -18,6 +18,7 @@
   - `github.py` — GitHub Issues provider
   - `jira.py` — JIRA provider (Cloud REST v3, Server/Data Center REST v2)
   - `settings.py` — `Settings` dataclass resolved from flags + config file, received by subcommands via `@click.pass_obj`
+  - `tables.py` — every table grind prints: tabulate in the chosen `--table-style`, coloured by the theme and clipped to the terminal
   - `ui.py` — Terminal themes, seasonal colour system, coffee and cake easter eggs
   - `config.py` — TOML configuration loader and the default config template
   - `cache.py` — Generic TTL disk cache
