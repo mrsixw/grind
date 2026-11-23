@@ -232,6 +232,20 @@ flag works.
 
 Config key: `emoji = true`
 
+### `--progress` / `--no-progress`
+
+While `list` fetches, it says so on stderr (enabled by default):
+
+```text
+Grinding through your tickets... ☕
+```
+
+`--no-progress` leaves that line out. Warnings, errors and "Nothing to grind"
+still appear. The line is on stderr, so it never gets into piped output either
+way.
+
+Config key: `progress = true`
+
 ### `--seasonal-colours` / `--no-seasonal-colours`
 
 Apply seasonal ANSI colours based on the current date (enabled by default).

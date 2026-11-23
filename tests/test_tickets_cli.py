@@ -446,6 +446,30 @@ def test_no_emoji_ends_the_progress_line_with_its_dots(grind, both):
     assert "Grinding through your tickets...\n" in result.stderr
 
 
+@pytest.mark.parametrize(
+    ("args", "config"),
+    [(("--no-progress",), ""), ((), "progress = false\n")],
+    ids=["flag", "config"],
+)
+def test_no_progress_leaves_the_progress_line_out(grind, both, args, config):
+    result = grind(*args, "list", config=config + CONFIG)
+    assert result.exit_code == 0, result.output
+    assert "Grinding" not in result.stderr
+    assert "Descale the espresso machine" in result.stdout
+
+
+def test_progress_is_on_by_default_and_the_flag_beats_the_config(grind, both):
+    assert "Grinding" in grind("list").stderr
+    result = grind("--progress", "list", config="progress = false\n" + CONFIG)
+    assert "Grinding" in result.stderr
+
+
+def test_no_progress_still_says_when_there_is_nothing_to_grind(grind, requests_mock):
+    requests_mock.get(f"{GH}/search/issues", json={"items": []})
+    result = grind("--no-progress", "list", "-s", "oss")
+    assert result.stderr.startswith("☕ Nothing to grind.")
+
+
 def test_no_emoji_marks_a_failed_source_check_in_words(grind, requests_mock):
     _mock_sources_check(requests_mock)
     result = grind("--no-emoji", "sources", "--check")

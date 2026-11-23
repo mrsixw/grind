@@ -142,6 +142,11 @@ def resolve_option(flag_value, cfg: dict, key: str, default):
     help="Print emoji in show, progress and messages (on by default).",
 )
 @click.option(
+    "--progress/--no-progress",
+    default=None,
+    help="Say on stderr what list is fetching (on by default).",
+)
+@click.option(
     "--no-colour",
     "no_colour",
     is_flag=True,
@@ -222,6 +227,7 @@ def main(
     seasonal_calendar,
     table_style,
     emoji,
+    progress,
     no_colour,
     cache_enabled,
     cache_ttl,
@@ -284,6 +290,7 @@ def main(
         colour=not (no_colour or cfg.get("no-colour", False)),
         table_style=style,
         emoji=resolve_option(emoji, cfg, "emoji", True),
+        progress=resolve_option(progress, cfg, "progress", True),
         cache_enabled=resolve_option(cache_enabled, cfg, "cache", False),
         cache_ttl=ttl,
         update_check=not (no_update_check or cfg.get("no-update-check", False)),
@@ -501,6 +508,8 @@ def _resolve(settings: Settings, ref: str) -> tuple[dict, Provider, str]:
 
 
 def _progress(settings: Settings, message: str) -> None:
+    if not settings.progress:
+        return
     if settings.emoji:
         message = f"{message} {random.choice(APP_ITEMS)}"
     click.echo(

@@ -65,6 +65,10 @@ _DEFAULT_CONFIG_CONTENT = """\
 # Equivalent to: --emoji / --no-emoji
 # emoji = true
 
+# Say on stderr what list is fetching, while it fetches.
+# Equivalent to: --progress / --no-progress
+# progress = true
+
 # Disable all ANSI colour output.
 # Also honoured via the GRIND_NO_COLOUR environment variable, set to any
 # non-empty value.

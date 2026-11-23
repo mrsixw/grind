@@ -32,6 +32,8 @@ class Settings:
     table_style: str = DEFAULT_TABLE_STYLE
     #: Whether grind prints emoji. Off, every message reads the same without.
     emoji: bool = True
+    #: Whether ``list`` prints its progress line on stderr.
+    progress: bool = True
     cache_enabled: bool = False
     cache_ttl: int = 300
     update_check: bool = True
