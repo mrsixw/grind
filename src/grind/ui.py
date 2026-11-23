@@ -63,6 +63,7 @@ __all__ = [
     "render_coffee_recipe",
     "render_pastry_recipe",
     "seasonal_colour",
+    "with_emoji",
 ]
 
 _RESET = "\033[0m"
@@ -455,6 +456,23 @@ def colour_grade_number(num: int | float) -> str:
     elif num < 50:
         colour = 208  # orange (256-colour)
     return click.style(str(num), fg=colour, bold=True)
+
+
+#: Ends an emoji whose width terminals disagree on (⚠️, ✏️). Text after one
+#: gets a second space, so it never runs into the emoji.
+_VARIATION_SELECTOR = "\ufe0f"
+
+
+def with_emoji(emoji: str, text: str, enabled: bool = True) -> str:
+    """Put *emoji* in front of *text*, or return *text* alone if not *enabled*.
+
+    Every emoji grind prints goes through here, so ``--no-emoji`` reaches all
+    of them.
+    """
+    if not enabled:
+        return text
+    gap = "  " if emoji.endswith(_VARIATION_SELECTOR) else " "
+    return f"{emoji}{gap}{text}"
 
 
 def echo_err(msg: str, colour: bool = True, fg: str = "yellow") -> None:

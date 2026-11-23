@@ -19,6 +19,7 @@ from .constants import (
 )
 from .fsutil import atomic_write_stream, atomic_write_text
 from .logger import logger
+from .ui import with_emoji
 from .xdg import get_cache_dir
 
 __all__ = [
@@ -159,17 +160,18 @@ def get_release_summary(body: str, max_chars: int = 200) -> str:
     return summary
 
 
-def check_for_update(show_summary: bool = False):
+def check_for_update(show_summary: bool = False, emoji: bool = True):
     try:
         current = pkg_version(APP_NAME)
         latest = get_latest_version()
         if not latest:
             return None
         if _is_newer(latest, current):
-            msg = (
-                f"🍟 A fresh order is ready! "
-                f"v{current} → v{latest} "
-                f"— update at https://github.com/{UPDATE_CHECK_REPO}/releases/latest"
+            msg = with_emoji(
+                "🍟",
+                f"A fresh order is ready! v{current} → v{latest} "
+                f"— update at https://github.com/{UPDATE_CHECK_REPO}/releases/latest",
+                emoji,
             )
             if show_summary:
                 cached = _read_version_cache()
@@ -177,7 +179,7 @@ def check_for_update(show_summary: bool = False):
                 if body:
                     summary = get_release_summary(body)
                     if summary:
-                        msg += f"\n  📋 {summary}"
+                        msg += f"\n  {with_emoji('📋', summary, emoji)}"
             return msg
         return None
     except PackageNotFoundError as exc:

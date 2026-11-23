@@ -350,6 +350,109 @@ def test_the_emoji_flag_beats_the_config_file(grind, requests_mock):
     assert "  🚦 Status:   open" in result.stdout.splitlines()
 
 
+#: Emoji start at the Miscellaneous Symbols block (☕, ⚠, ✅); the box-drawing
+#: characters tables are drawn with sit below it.
+_FIRST_EMOJI_CODEPOINT = 0x2600
+
+
+def has_emoji(text: str) -> bool:
+    return any(
+        unicodedata.category(char) == "So" and ord(char) >= _FIRST_EMOJI_CODEPOINT
+        for char in text
+    )
+
+
+def _mock_list_with_one_source_down(mock):
+    mock.get(f"{GH}/search/issues", json={"items": [gh_issue()]})
+    mock.get(f"{JIRA}/search/jql", status_code=500)
+
+
+def _mock_show_with_a_comment(mock):
+    mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(comments=1))
+    mock.get(
+        f"{GH}/repos/acme/beans/issues/7/comments",
+        json=[{"user": {"login": "grace"}, "body": "On it.", "created_at": "x"}],
+    )
+
+
+def _mock_edit(mock):
+    mock.put(f"{JIRA}/issue/PROJ-1", status_code=204)
+    mock.get(f"{JIRA}/issue/PROJ-1", json=jira_issue())
+
+
+def _mock_assign(mock):
+    mock.get(f"{GH}/user", json={"login": "ada"})
+    mock.patch(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+
+
+def _mock_sources_check(mock):
+    mock.get(f"{GH}/user", json={"login": "ada"})
+    mock.get(f"{JIRA}/myself", status_code=401)
+
+
+@pytest.mark.parametrize(
+    ("mock", "args"),
+    [
+        (_mock_list_with_one_source_down, ("--debug-summary", "list")),
+        (
+            lambda mock: mock.get(f"{GH}/search/issues", json={"items": []}),
+            ("list", "-s", "oss"),
+        ),
+        (_mock_show_with_a_comment, ("show", "oss:#7", "--comments")),
+        (
+            lambda mock: mock.post(f"{GH}/repos/acme/beans/issues", json=gh_issue(8)),
+            ("create", "-s", "oss", "-t", "Buy filters"),
+        ),
+        (_mock_edit, ("edit", "work:PROJ-1", "-t", "New")),
+        (
+            lambda mock: mock.post(
+                f"{GH}/repos/acme/beans/issues/7/comments", json={"body": "Done."}
+            ),
+            ("comment", "oss:#7", "Done."),
+        ),
+        (_mock_assign, ("assign", "oss:#7")),
+        (
+            lambda mock: mock.patch(
+                f"{GH}/repos/acme/beans/issues/7", json=gh_issue(state="closed")
+            ),
+            ("move", "oss:#7", "done"),
+        ),
+        (_mock_sources_check, ("sources", "--check")),
+    ],
+    ids=[
+        "list",
+        "empty",
+        "show",
+        "create",
+        "edit",
+        "comment",
+        "assign",
+        "move",
+        "sources",
+    ],
+)
+def test_no_emoji_means_none_anywhere(grind, requests_mock, mock, args):
+    mock(requests_mock)
+    with_emoji = grind(*args)
+    assert has_emoji(with_emoji.output), "the case should print an emoji to drop"
+    requests_mock.reset_mock()
+    result = grind("--no-emoji", *args)
+    assert result.exit_code == with_emoji.exit_code, result.output
+    assert not has_emoji(result.output), result.output
+
+
+def test_no_emoji_ends_the_progress_line_with_its_dots(grind, both):
+    result = grind("--no-emoji", "list")
+    assert "Grinding through your tickets...\n" in result.stderr
+
+
+def test_no_emoji_marks_a_failed_source_check_in_words(grind, requests_mock):
+    _mock_sources_check(requests_mock)
+    result = grind("--no-emoji", "sources", "--check")
+    assert result.exit_code == 1
+    assert "error: Source 'work' answered 401" in result.stdout
+
+
 @pytest.mark.parametrize("name", FACT_EMOJI)
 def test_every_field_emoji_is_two_cells_wide(name):
     icon = FACT_EMOJI[name]

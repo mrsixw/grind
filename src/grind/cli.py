@@ -139,7 +139,7 @@ def resolve_option(flag_value, cfg: dict, key: str, default):
 @click.option(
     "--emoji/--no-emoji",
     default=None,
-    help="Put an emoji in front of each field in show (on by default).",
+    help="Print emoji in show, progress and messages (on by default).",
 )
 @click.option(
     "--no-colour",
@@ -256,6 +256,8 @@ def main(
     # would spew into the user's prompt; and if a bad config could block update,
     # there would be no way to install the release that fixes it.
     if ctx.invoked_subcommand in CONFIG_FREE_COMMANDS:
+        # Only what the flags say: these never read the config file.
+        ctx.obj = Settings(colour=not no_colour, emoji=emoji is not False)
         return
 
     try:
@@ -315,7 +317,9 @@ def _notify_update(settings: Settings) -> None:
     """Print an update notice to stderr if a newer release is available."""
     if not settings.update_check:
         return
-    update_msg = check_for_update(show_summary=settings.update_summary)
+    update_msg = check_for_update(
+        show_summary=settings.update_summary, emoji=settings.emoji
+    )
     if update_msg:
         click.echo(
             click.style(settings.theme.apply(update_msg), bold=True),
@@ -327,12 +331,14 @@ def _notify_update(settings: Settings) -> None:
 def _serve_easter_eggs(settings: Settings) -> None:
     """Print the recipe easter eggs, if today or the flags have earned one.
 
-    The once-a-year gifts are gated on colour: they are pure decoration, so a
-    user who asked for plain output should not have them appear unbidden.
+    The once-a-year gifts are gated on colour and emoji: they are pure
+    decoration, so a user who asked for plain output should not have them
+    appear unbidden.
     The explicit --brew/--cake/--pastry flags are not gated — the user asked.
     All of it goes to stderr, so a piped stdout is never polluted.
     """
-    if settings.colour and is_birthday() and not has_shown_holiday_gift("birthday"):
+    decorate = settings.colour and settings.emoji
+    if decorate and is_birthday() and not has_shown_holiday_gift("birthday"):
         recipe = get_random_cake_recipe()
         click.echo(
             render_cake_recipe(recipe, occasion="birthday", colour=settings.colour),
@@ -347,7 +353,7 @@ def _serve_easter_eggs(settings: Settings) -> None:
             color=settings.colour,
         )
 
-    if settings.colour and is_christmas() and not has_shown_holiday_gift("christmas"):
+    if decorate and is_christmas() and not has_shown_holiday_gift("christmas"):
         recipe = get_random_coffee_recipe()
         click.echo(
             render_coffee_recipe(recipe, occasion="christmas", colour=settings.colour),
@@ -394,7 +400,9 @@ def _print_debug_summary(
         **(extra or {}),
     }
     width = max(len(label) for label in rows)
-    title = settings.theme.apply("🐛 Debug summary", role="accent")
+    title = settings.theme.apply(
+        settings.with_emoji("🐛", "Debug summary"), role="accent"
+    )
     lines = [click.style(title, bold=True)]
     lines += [f"  {label + ':':<{width + 1}} {value}" for label, value in rows.items()]
     click.echo("\n".join(lines), err=True, color=settings.colour)
@@ -439,6 +447,8 @@ _FACT_LABEL_WIDTH = 10
 #: Palette positions for labels and values on days a seasonal palette cycles.
 _LABEL_INDEX = 0
 _VALUE_INDEX = 1
+#: What ``sources --check`` puts before a failure when emoji are off.
+_CHECK_FAILED = "error:"
 _NO_SOURCES = (
     "No sources configured, so there is nothing to grind. Run "
     f"`{BINARY_NAME} config init` and add a [sources.<name>] table."
@@ -491,8 +501,10 @@ def _resolve(settings: Settings, ref: str) -> tuple[dict, Provider, str]:
 
 
 def _progress(settings: Settings, message: str) -> None:
+    if settings.emoji:
+        message = f"{message} {random.choice(APP_ITEMS)}"
     click.echo(
-        settings.theme.apply(f"{message} {random.choice(APP_ITEMS)}", role="muted"),
+        settings.theme.apply(message, role="muted"),
         err=True,
         color=settings.colour,
     )
@@ -565,7 +577,9 @@ def _render_ticket(settings: Settings, ticket: Ticket) -> str:
     if ticket.body:
         lines += ["", ticket.body.rstrip()]
     for comment in ticket.comments:
-        heading = f"💬 {comment.author} · {_short_date(comment.created)}"
+        heading = settings.with_emoji(
+            "💬", f"{comment.author} · {_short_date(comment.created)}"
+        )
         lines += ["", settings.paint(heading, role="accent"), comment.body.rstrip()]
     return "\n".join(lines)
 
@@ -675,7 +689,7 @@ def list_tickets(
             # One source being down must not hide the others' tickets.
             failed = True
             click.echo(
-                settings.theme.apply(f"⚠️  {exc}", role="warn"),
+                settings.theme.apply(settings.with_emoji("⚠️", str(exc)), role="warn"),
                 err=True,
                 color=settings.colour,
             )
@@ -687,7 +701,10 @@ def list_tickets(
         click.echo(_render_tickets(settings, tickets))
     elif not failed:
         click.echo(
-            "☕ Nothing to grind. The cup is empty — put the kettle on.", err=True
+            settings.with_emoji(
+                "☕", "Nothing to grind. The cup is empty — put the kettle on."
+            ),
+            err=True,
         )
 
     finish_run(settings, item_count=len(tickets), extra=_request_rows(sources))
@@ -726,10 +743,14 @@ def _read_body(body: str | None, body_file) -> str | None:
     return body
 
 
-def _done(settings: Settings, message: str, sources: dict[str, Provider]) -> None:
+def _done(
+    settings: Settings, emoji: str, message: str, sources: dict[str, Provider]
+) -> None:
     """Report a successful write on stderr; the ticket itself goes to stdout."""
     click.echo(
-        settings.theme.apply(message, role="success"), err=True, color=settings.colour
+        settings.theme.apply(settings.with_emoji(emoji, message), role="success"),
+        err=True,
+        color=settings.colour,
     )
     finish_run(settings, item_count=1, extra=_request_rows(sources))
 
@@ -785,7 +806,7 @@ def create(
         raise _fail(exc) from exc
     # The bare reference, so `grind show "$(grind create ...)"` composes.
     click.echo(ticket.ref)
-    _done(settings, f"🫘 Freshly ground: {ticket.title} — {ticket.url}", sources)
+    _done(settings, "🫘", f"Freshly ground: {ticket.title} — {ticket.url}", sources)
 
 
 @main.command()
@@ -817,7 +838,7 @@ def edit(settings: Settings, ref, title, body, body_file, add_labels, remove_lab
     except ProviderError as exc:
         raise _fail(exc) from exc
     click.echo(ticket.ref)
-    _done(settings, f"✏️  Updated {ticket.ref}.", sources)
+    _done(settings, "✏️", f"Updated {ticket.ref}.", sources)
 
 
 @main.command()
@@ -840,7 +861,7 @@ def comment(settings: Settings, ref, body, body_file):
         provider.add_comment(key, text)
     except ProviderError as exc:
         raise _fail(exc) from exc
-    _done(settings, f"💬 Comment added to {provider.source}:{key}.", sources)
+    _done(settings, "💬", f"Comment added to {provider.source}:{key}.", sources)
 
 
 @main.command()
@@ -859,7 +880,7 @@ def assign(settings: Settings, ref, user, nobody):
         raise _fail(exc) from exc
     click.echo(ticket.ref)
     who = ticket.assignee or "nobody"
-    _done(settings, f"👤 {ticket.ref} is now assigned to {who}.", sources)
+    _done(settings, "👤", f"{ticket.ref} is now assigned to {who}.", sources)
 
 
 @main.command()
@@ -874,7 +895,7 @@ def move(settings: Settings, ref, status):
     except ProviderError as exc:
         raise _fail(exc) from exc
     click.echo(ticket.ref)
-    _done(settings, f"➡️  {ticket.ref} is now {ticket.status}.", sources)
+    _done(settings, "➡️", f"{ticket.ref} is now {ticket.status}.", sources)
 
 
 @main.command("sources")
@@ -903,10 +924,12 @@ def list_sources(settings: Settings, check: bool, show_plugin_dir: bool):
         row = [name, provider.name, getattr(provider, "base_url", "")]
         if check:
             try:
-                row.append(f"✅ {provider.whoami()}")
+                row.append(settings.with_emoji("✅", provider.whoami()))
             except ProviderError as exc:
                 failed = True
-                row.append(f"❌ {exc}")
+                # Without the emoji, a word keeps a failure from passing as a name.
+                failure = f"{exc}" if settings.emoji else f"{_CHECK_FAILED} {exc}"
+                row.append(settings.with_emoji("❌", failure))
         rows.append(row)
     if rows:
         headers = ["SOURCE", "PROVIDER", "URL"] + (["CHECK"] if check else [])
@@ -940,17 +963,18 @@ def config_show(settings: Settings):
 
 
 @config_group.command("init")
-def config_init():
+@click.pass_obj
+def config_init(settings: Settings):
     """Write a default config file to the XDG config directory."""
     path = write_default_config()
-    click.echo(f"✅ Default config written to: {path}")
+    click.echo(settings.with_emoji("✅", f"Default config written to: {path}"))
 
 
 @config_group.command("update")
 @click.pass_obj
 def config_update(settings: Settings):
     """Merge missing keys from the template into your config file (with backup)."""
-    if not update_config(settings.config_path):
+    if not update_config(settings.config_path, emoji=settings.emoji):
         raise SystemExit(1)
 
 
@@ -1016,10 +1040,13 @@ def _current_executable_path() -> str:
 
 
 @main.command()
-def update():
+@click.pass_obj
+def update(settings: Settings):
     """Download and install the latest grind release over this executable."""
     click.echo(
-        click.style("🔍 Checking for a newer release...", fg="cyan"),
+        click.style(
+            settings.with_emoji("🔍", "Checking for a newer release..."), fg="cyan"
+        ),
         err=True,
     )
     status, current, detail = perform_update(_current_executable_path())
@@ -1030,13 +1057,19 @@ def update():
         raise click.ClickException(f"Update failed: {detail}")
     if status is UpdateStatus.UP_TO_DATE:
         click.echo(
-            click.style(f"✅ Already up to date, v{current}.", fg="green"),
+            click.style(
+                settings.with_emoji("✅", f"Already up to date, v{current}."),
+                fg="green",
+            ),
             err=True,
         )
         return
 
     click.echo(
-        click.style(f"✅ grind has been updated to v{detail}.", fg="green"),
+        click.style(
+            settings.with_emoji("✅", f"grind has been updated to v{detail}."),
+            fg="green",
+        ),
         err=True,
     )
     # The completion scripts re-invoke the binary, so they track it for free.

@@ -204,14 +204,31 @@ Config key: `table-style = "outline"`
 
 ### `--emoji` / `--no-emoji`
 
-Put an emoji in front of each field in `show` (enabled by default). `--no-emoji` leaves them out, and nothing else changes:
-the labels and values keep their colours, and the values stay lined up.
+Print emoji (enabled by default). `--no-emoji` turns off every one grind
+prints:
+
+- the icon in front of each field in `show`, and the 💬 on its comments
+- the emoji at the end of the progress line, which then ends in its dots:
+  `Grinding through your tickets...`
+- the emoji in messages: tickets created, edited, commented on, assigned or
+  moved, "Nothing to grind", source warnings, `config` and `update` messages,
+  the update notice and the debug summary
+- in `sources --check`, the ✅ and ❌. A failure reads `error: <reason>`
+  instead, so it still stands out
+- the birthday and Christmas recipes that appear by themselves
+
+Nothing else changes: colours stay on, including the pair that sets each
+`show` label apart from its value, and the values stay lined up.
 
 ```text
 oss:acme/beans#7  Descale the espresso machine
   Status:   open
   Type:     issue
 ```
+
+The `--brew`, `--cake` and `--pastry` recipes still have their emoji, since
+you asked for them. `update` never reads the config file, so for it only the
+flag works.
 
 Config key: `emoji = true`
 

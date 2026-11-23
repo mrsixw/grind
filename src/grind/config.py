@@ -14,6 +14,7 @@ else:
 
 from .constants import APP_NAME
 from .fsutil import atomic_write_text
+from .ui import with_emoji
 from .xdg import get_config_dir, get_config_paths
 
 __all__ = [
@@ -58,8 +59,9 @@ _DEFAULT_CONFIG_CONTENT = """\
 # Equivalent to: --table-style <name>
 # table-style = "outline"
 
-# Put an emoji in front of each field in show. Turning it off keeps the
-# colours that set each field's name apart from its value.
+# Print emoji: in front of each field in show, on the progress line and in
+# messages. Turning them off keeps the colours, including the ones that set
+# each show field's name apart from its value.
 # Equivalent to: --emoji / --no-emoji
 # emoji = true
 
@@ -228,7 +230,7 @@ def _key_present_in_file(key: str, content: str) -> bool:
     return bool(re.search(pattern, content, re.MULTILINE))
 
 
-def update_config(config_path: str | None = None) -> bool:
+def update_config(config_path: str | None = None, *, emoji: bool = True) -> bool:
     """Append any missing options to the existing config file.
 
     Resolves the config file using the same priority order as load_config().
@@ -253,7 +255,7 @@ def update_config(config_path: str | None = None) -> bool:
         )
         return False
 
-    click.echo(f"📋 Updating config at {existing_path}", err=True)
+    click.echo(with_emoji("📋", f"Updating config at {existing_path}", emoji), err=True)
 
     try:
         existing_content = existing_path.read_text(encoding="utf-8")
@@ -270,7 +272,10 @@ def update_config(config_path: str | None = None) -> bool:
 
     if not missing:
         click.echo(
-            click.style("✅ Config is already up to date.", fg="green"), err=True
+            click.style(
+                with_emoji("✅", "Config is already up to date.", emoji), fg="green"
+            ),
+            err=True,
         )
         return True
 
@@ -284,7 +289,7 @@ def update_config(config_path: str | None = None) -> bool:
     except OSError as exc:
         click.echo(click.style(f"Error writing backup: {exc}", fg="red"), err=True)
         return False
-    click.echo(f"💾 Backup saved to {backup_path}", err=True)
+    click.echo(with_emoji("💾", f"Backup saved to {backup_path}", emoji), err=True)
 
     try:
         _version = pkg_version(APP_NAME)
@@ -308,7 +313,11 @@ def update_config(config_path: str | None = None) -> bool:
         return False
 
     click.echo(
-        click.style(f"✅ Added {len(missing)} missing option(s):", fg="green"), err=True
+        click.style(
+            with_emoji("✅", f"Added {len(missing)} missing option(s):", emoji),
+            fg="green",
+        ),
+        err=True,
     )
     for key, _ in missing:
         click.echo(f"   {key}", err=True)
