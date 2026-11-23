@@ -518,7 +518,8 @@ def test_no_emoji_means_none_anywhere(grind, requests_mock, mock, args):
 
 def test_no_emoji_ends_the_progress_line_with_its_dots(grind, both):
     result = grind("--no-emoji", "list")
-    assert "Grinding through your tickets...\n" in result.stderr
+    progress = "Grinding through open tickets assigned to you in oss, work...\n"
+    assert progress in result.stderr
 
 
 @pytest.mark.parametrize(

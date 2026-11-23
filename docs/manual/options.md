@@ -280,7 +280,7 @@ prints:
 - the icon in front of each field in `show`, and the 📝 and 💬 on its
   Description and Comments headings
 - the emoji at the end of the progress line, which then ends in its dots:
-  `Grinding through your tickets...`
+  `Grinding through open tickets assigned to you in oss, work...`
 - the emoji in messages: tickets created, edited, commented on, assigned or
   moved, "Nothing to grind", source warnings, `config` and `update` messages,
   the update notice and the debug summary
@@ -308,7 +308,7 @@ Config key: `emoji = true`
 While `list` fetches, it says so on stderr (enabled by default):
 
 ```text
-Grinding through your tickets... ☕
+Grinding through open tickets assigned to you in oss, work... ☕
 ```
 
 `--no-progress` leaves that line out. Warnings, errors and "Nothing to grind"
