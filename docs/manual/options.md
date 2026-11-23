@@ -45,6 +45,9 @@ oss:acme/beans#7  Descale the espresso machine
   🔗 URL:      https://github.com/acme/beans/issues/7
 ```
 
+[`--no-emoji`](#--emoji----no-emoji) leaves them out. The labels and values
+keep their colours.
+
 ### `create`
 
 Create a ticket. Prints the new reference on stdout.
@@ -198,6 +201,19 @@ Titles are clipped with `…` so the table fits the terminal width, measured in
 terminal cells, so emoji and other wide characters count double.
 
 Config key: `table-style = "outline"`
+
+### `--emoji` / `--no-emoji`
+
+Put an emoji in front of each field in `show` (enabled by default). `--no-emoji` leaves them out, and nothing else changes:
+the labels and values keep their colours, and the values stay lined up.
+
+```text
+oss:acme/beans#7  Descale the espresso machine
+  Status:   open
+  Type:     issue
+```
+
+Config key: `emoji = true`
 
 ### `--seasonal-colours` / `--no-seasonal-colours`
 

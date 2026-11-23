@@ -137,6 +137,11 @@ def resolve_option(flag_value, cfg: dict, key: str, default):
     help=f"How tables are drawn. Default: {DEFAULT_TABLE_STYLE}.",
 )
 @click.option(
+    "--emoji/--no-emoji",
+    default=None,
+    help="Put an emoji in front of each field in show (on by default).",
+)
+@click.option(
     "--no-colour",
     "no_colour",
     is_flag=True,
@@ -216,6 +221,7 @@ def main(
     seasonal_colours,
     seasonal_calendar,
     table_style,
+    emoji,
     no_colour,
     cache_enabled,
     cache_ttl,
@@ -275,6 +281,7 @@ def main(
         ),
         colour=not (no_colour or cfg.get("no-colour", False)),
         table_style=style,
+        emoji=resolve_option(emoji, cfg, "emoji", True),
         cache_enabled=resolve_option(cache_enabled, cfg, "cache", False),
         cache_ttl=ttl,
         update_check=not (no_update_check or cfg.get("no-update-check", False)),
@@ -527,15 +534,15 @@ def _render_fact(settings: Settings, label: str, value: str) -> str:
     the label and value neighbouring colours. Most holidays have a single
     colour, and there the bold is what keeps the label apart from its value.
     """
-    icon = FACT_EMOJI[label]
+    icon = f"{FACT_EMOJI[label]} " if settings.emoji else ""
     name = f"{label + ':':<{_FACT_LABEL_WIDTH}}"
     if not settings.colour:
-        return f"  {icon} {name}{value}"
+        return f"  {icon}{name}{value}"
     painted = click.style(
         settings.paint(name, role="label", index=_LABEL_INDEX), bold=True
     )
     shown = settings.paint(value, role="value", index=_VALUE_INDEX)
-    return f"  {icon} {painted}{shown}"
+    return f"  {icon}{painted}{shown}"
 
 
 def _render_ticket(settings: Settings, ticket: Ticket) -> str:

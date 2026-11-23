@@ -58,6 +58,11 @@ _DEFAULT_CONFIG_CONTENT = """\
 # Equivalent to: --table-style <name>
 # table-style = "outline"
 
+# Put an emoji in front of each field in show. Turning it off keeps the
+# colours that set each field's name apart from its value.
+# Equivalent to: --emoji / --no-emoji
+# emoji = true
+
 # Disable all ANSI colour output.
 # Also honoured via the GRIND_NO_COLOUR environment variable, set to any
 # non-empty value.

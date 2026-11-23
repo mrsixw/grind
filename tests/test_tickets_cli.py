@@ -329,6 +329,27 @@ def test_show_puts_an_emoji_on_every_field_and_keeps_values_aligned(
     assert len(value_columns) == 1
 
 
+@pytest.mark.parametrize(
+    ("args", "config"),
+    [(("--no-emoji",), ""), ((), "emoji = false\n")],
+    ids=["flag", "config"],
+)
+def test_no_emoji_leaves_the_field_emoji_out(grind, requests_mock, args, config):
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+    result = grind(*args, "show", "oss:#7", config=config + CONFIG)
+    assert result.exit_code == 0, result.output
+    lines = result.stdout.splitlines()
+    assert "  Status:   open" in lines
+    assert "  Reporter: grace" in lines
+    assert not any(icon in result.stdout for icon in FACT_EMOJI.values())
+
+
+def test_the_emoji_flag_beats_the_config_file(grind, requests_mock):
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+    result = grind("--emoji", "show", "oss:#7", config="emoji = false\n" + CONFIG)
+    assert "  🚦 Status:   open" in result.stdout.splitlines()
+
+
 @pytest.mark.parametrize("name", FACT_EMOJI)
 def test_every_field_emoji_is_two_cells_wide(name):
     icon = FACT_EMOJI[name]
@@ -353,6 +374,18 @@ def test_show_colours_labels_and_values_from_the_theme(
     status = next(line for line in result.stdout.splitlines() if "Status:" in line)
     assert status.startswith(f"  🚦 \x1b[1m{label}Status:")
     assert f"{value}open" in status
+
+
+def test_no_emoji_keeps_the_label_and_value_colours(
+    tmp_path, monkeypatch, requests_mock
+):
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+    result = run_in_colour(tmp_path, monkeypatch, "--no-emoji", "show", "oss:#7")
+    assert result.exit_code == 0, result.output
+    status = next(line for line in result.stdout.splitlines() if "Status:" in line)
+    # The default theme's caramel label and latte value, as with the emoji on.
+    assert status.startswith("  \x1b[1m\x1b[38;5;173mStatus:")
+    assert "\x1b[38;5;180mopen" in status
 
 
 def test_show_comments_and_json(grind, requests_mock):

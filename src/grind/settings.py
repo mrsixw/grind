@@ -30,6 +30,8 @@ class Settings:
     colour: bool = True
     #: A tabulate format name, one of ``constants.TABLE_STYLES``.
     table_style: str = DEFAULT_TABLE_STYLE
+    #: Whether ``show`` puts an emoji in front of each field.
+    emoji: bool = True
     cache_enabled: bool = False
     cache_ttl: int = 300
     update_check: bool = True
