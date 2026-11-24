@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass, field
 
 from .constants import DEFAULT_TABLE_STYLE
-from .ui import Theme, apply_seasonal_colour, seasonal_colour
+from .ui import Theme, apply_seasonal_colour, seasonal_colour, with_emoji
 
 __all__ = [
     "Settings",
@@ -30,6 +30,10 @@ class Settings:
     colour: bool = True
     #: A tabulate format name, one of ``constants.TABLE_STYLES``.
     table_style: str = DEFAULT_TABLE_STYLE
+    #: Whether grind prints emoji. Off, every message reads the same without.
+    emoji: bool = True
+    #: Whether ``list`` prints its progress line on stderr.
+    progress: bool = True
     cache_enabled: bool = False
     cache_ttl: int = 300
     update_check: bool = True
@@ -41,6 +45,10 @@ class Settings:
     #: When this invocation started, for the debug summary's elapsed row.
     #: monotonic, so a clock adjustment mid-run cannot produce a negative time.
     started_at: float = field(default_factory=time.monotonic)
+
+    def with_emoji(self, emoji: str, text: str) -> str:
+        """Put *emoji* in front of *text*, unless ``--no-emoji`` is in effect."""
+        return with_emoji(emoji, text, self.emoji)
 
     def paint(self, text: str, *, index: int = 0, role: str = "primary") -> str:
         """Colour *text* per the resolved colour/seasonal/theme settings.

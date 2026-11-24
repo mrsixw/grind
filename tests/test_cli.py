@@ -125,6 +125,15 @@ def test_config_init(tmp_path, monkeypatch):
     assert "config.toml" in result.output
 
 
+def test_config_init_without_emoji(tmp_path, monkeypatch):
+    from grind import config as cfg_mod
+
+    monkeypatch.setattr(cfg_mod, "get_config_dir", lambda: tmp_path / "grind")
+    result = _invoke("--no-emoji", "config", "init")
+    assert result.exit_code == 0
+    assert result.output.startswith("Default config written to: ")
+
+
 def test_config_show(monkeypatch):
     monkeypatch.setattr(cli_mod, "check_for_update", lambda **_kw: None)
     result = _invoke("config", "show")
@@ -220,6 +229,24 @@ def test_config_update_up_to_date_exits_0(tmp_path, monkeypatch):
     assert result.exit_code == 0
 
 
+@pytest.mark.parametrize(
+    ("args", "emoji"),
+    [((), {"📋", "💾", "✅"}), (("--no-emoji",), set())],
+    ids=["emoji", "no-emoji"],
+)
+def test_config_update_emoji_follow_the_setting(tmp_path, monkeypatch, args, emoji):
+    from grind import config as cfg_mod
+
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text('theme = "dark"\n')
+    monkeypatch.setattr(cfg_mod, "get_config_paths", lambda: [cfg_file])
+    result = _invoke(*args, "config", "update")
+    assert result.exit_code == 0
+    assert "Updating config at" in result.output
+    assert "Backup saved to" in result.output
+    assert {icon for icon in "📋💾✅" if icon in result.output} == emoji
+
+
 # ── update ──────────────────────────────────────────────────────────────────
 
 
@@ -259,6 +286,22 @@ def test_update_error_surfaces_detail(monkeypatch):
     assert result.exit_code != 0
     assert "Permission denied" in result.output
     assert "Traceback" not in result.output
+
+
+@pytest.mark.parametrize(
+    ("status", "message"),
+    [
+        (cli_mod.UpdateStatus.UPDATED, "grind has been updated to v2.0.0."),
+        (cli_mod.UpdateStatus.UP_TO_DATE, "Already up to date, v1.0.0."),
+    ],
+)
+def test_update_without_emoji(monkeypatch, status, message):
+    _stub_update(monkeypatch, status)
+    result = _invoke("--no-colour", "--no-emoji", "update")
+    assert result.exit_code == 0
+    lines = result.output.splitlines()
+    assert lines[0] == "Checking for a newer release..."
+    assert lines[1] == message
 
 
 def test_update_does_not_also_print_the_update_notice(monkeypatch):
@@ -329,7 +372,7 @@ def test_seasonal_calendar_rejects_unknown_values():
 
 
 def _stub_update_check(monkeypatch, calls):
-    def fake(show_summary=False):
+    def fake(show_summary=False, **_kw):
         calls.append(show_summary)
         notice = "🍟 A fresh order is ready!"
         return notice + "\n  📋 - Did a thing" if show_summary else notice
@@ -389,7 +432,7 @@ def test_update_summary_is_skipped_when_update_check_is_off(monkeypatch):
 @pytest.fixture
 def quiet_updates(monkeypatch):
     """Silence the update notice so easter-egg output stands alone."""
-    monkeypatch.setattr(cli_mod, "check_for_update", lambda show_summary=False: None)
+    monkeypatch.setattr(cli_mod, "check_for_update", lambda **_kw: None)
 
 
 @pytest.fixture
@@ -544,7 +587,7 @@ def test_no_update_check_env_any_non_empty_value_suppresses(
     # Presence is the signal, per no-color.org: the value is never parsed.
     calls = []
     monkeypatch.setattr(
-        cli_mod, "check_for_update", lambda show_summary=False: calls.append(1)
+        cli_mod, "check_for_update", lambda show_summary=False, **_kw: calls.append(1)
     )
     monkeypatch.setenv("GRIND_NO_UPDATE_CHECK", value)
     result = _invoke("sources")
@@ -555,7 +598,7 @@ def test_no_update_check_env_any_non_empty_value_suppresses(
 def test_no_update_check_env_empty_leaves_check_enabled(monkeypatch):
     calls = []
     monkeypatch.setattr(
-        cli_mod, "check_for_update", lambda show_summary=False: calls.append(1)
+        cli_mod, "check_for_update", lambda show_summary=False, **_kw: calls.append(1)
     )
     monkeypatch.setenv("GRIND_NO_UPDATE_CHECK", "")
     result = _invoke("sources")

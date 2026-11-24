@@ -74,6 +74,8 @@ def test_extract_option_blocks_returns_all_keys():
     assert "theme" in keys
     assert "cache" in keys
     assert "seasonal-colours" in keys
+    assert "emoji" in keys
+    assert "progress" in keys
     assert "no-update-check" in keys
 
 

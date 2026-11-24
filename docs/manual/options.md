@@ -31,6 +31,23 @@ contrasts a little, so the eye can find a field fast. On a holiday the
 seasonal colour takes over. Where it cycles (December, Pride, Holi), labels and
 values get neighbouring colours; otherwise the bold keeps them apart.
 
+Each field has an emoji in front of it:
+
+```text
+oss:acme/beans#7  Descale the espresso machine
+  🚦 Status:   open
+  🧩 Type:     issue
+  👤 Assignee: ada
+  📣 Reporter: grace
+  🔖 Labels:   chore
+  📅 Created:  2026-10-01
+  🔄 Updated:  2026-11-01
+  🔗 URL:      https://github.com/acme/beans/issues/7
+```
+
+[`--no-emoji`](#--emoji----no-emoji) leaves them out. The labels and values
+keep their colours.
+
 ### `create`
 
 Create a ticket. Prints the new reference on stdout.
@@ -184,6 +201,50 @@ Titles are clipped with `…` so the table fits the terminal width, measured in
 terminal cells, so emoji and other wide characters count double.
 
 Config key: `table-style = "outline"`
+
+### `--emoji` / `--no-emoji`
+
+Print emoji (enabled by default). `--no-emoji` turns off every one grind
+prints:
+
+- the icon in front of each field in `show`, and the 💬 on its comments
+- the emoji at the end of the progress line, which then ends in its dots:
+  `Grinding through your tickets...`
+- the emoji in messages: tickets created, edited, commented on, assigned or
+  moved, "Nothing to grind", source warnings, `config` and `update` messages,
+  the update notice and the debug summary
+- in `sources --check`, the ✅ and ❌. A failure reads `error: <reason>`
+  instead, so it still stands out
+- the birthday and Christmas recipes that appear by themselves
+
+Nothing else changes: colours stay on, including the pair that sets each
+`show` label apart from its value, and the values stay lined up.
+
+```text
+oss:acme/beans#7  Descale the espresso machine
+  Status:   open
+  Type:     issue
+```
+
+The `--brew`, `--cake` and `--pastry` recipes still have their emoji, since
+you asked for them. `update` never reads the config file, so for it only the
+flag works.
+
+Config key: `emoji = true`
+
+### `--progress` / `--no-progress`
+
+While `list` fetches, it says so on stderr (enabled by default):
+
+```text
+Grinding through your tickets... ☕
+```
+
+`--no-progress` leaves that line out. Warnings, errors and "Nothing to grind"
+still appear. The line is on stderr, so it never gets into piped output either
+way.
+
+Config key: `progress = true`
 
 ### `--seasonal-colours` / `--no-seasonal-colours`
 

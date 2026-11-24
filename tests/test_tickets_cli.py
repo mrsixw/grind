@@ -5,13 +5,14 @@ against a plugin are in ``test_plugin_cli.py``.
 """
 
 import json
+import unicodedata
 
 import pytest
 from click.testing import CliRunner
 from freezegun import freeze_time
 from wcwidth import wcswidth
 
-from grind.cli import main
+from grind.cli import FACT_EMOJI, main
 from grind.constants import TABLE_STYLES
 from grind.jira import text_to_adf
 
@@ -308,9 +309,180 @@ def test_show_renders_the_ticket(grind, requests_mock):
 def test_show_aligns_its_values_in_plain_output(grind, requests_mock):
     requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
     lines = grind("show", "oss:#7").stdout.splitlines()
+    assert "  🚦 Status:   open" in lines
+    assert "  📣 Reporter: grace" in lines
+    assert "\x1b[" not in "\n".join(lines)
+
+
+def test_show_puts_an_emoji_on_every_field_and_keeps_values_aligned(
+    grind, requests_mock
+):
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+    lines = grind("show", "oss:#7").stdout.splitlines()
+    # The title line, then one line per field: gh_issue() fills all of them.
+    fields = lines[1 : 1 + len(FACT_EMOJI)]
+    assert [line.split()[0] for line in fields] == list(FACT_EMOJI.values())
+    # Measured in terminal cells, every value starts in the same column.
+    value_columns = {
+        wcswidth(line) - wcswidth(line.split(":", 1)[1].lstrip()) for line in fields
+    }
+    assert len(value_columns) == 1
+
+
+@pytest.mark.parametrize(
+    ("args", "config"),
+    [(("--no-emoji",), ""), ((), "emoji = false\n")],
+    ids=["flag", "config"],
+)
+def test_no_emoji_leaves_the_field_emoji_out(grind, requests_mock, args, config):
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+    result = grind(*args, "show", "oss:#7", config=config + CONFIG)
+    assert result.exit_code == 0, result.output
+    lines = result.stdout.splitlines()
     assert "  Status:   open" in lines
     assert "  Reporter: grace" in lines
-    assert "\x1b[" not in "\n".join(lines)
+    assert not any(icon in result.stdout for icon in FACT_EMOJI.values())
+
+
+def test_the_emoji_flag_beats_the_config_file(grind, requests_mock):
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+    result = grind("--emoji", "show", "oss:#7", config="emoji = false\n" + CONFIG)
+    assert "  🚦 Status:   open" in result.stdout.splitlines()
+
+
+#: Emoji start at the Miscellaneous Symbols block (☕, ⚠, ✅); the box-drawing
+#: characters tables are drawn with sit below it.
+_FIRST_EMOJI_CODEPOINT = 0x2600
+
+
+def has_emoji(text: str) -> bool:
+    return any(
+        unicodedata.category(char) == "So" and ord(char) >= _FIRST_EMOJI_CODEPOINT
+        for char in text
+    )
+
+
+def _mock_list_with_one_source_down(mock):
+    mock.get(f"{GH}/search/issues", json={"items": [gh_issue()]})
+    mock.get(f"{JIRA}/search/jql", status_code=500)
+
+
+def _mock_show_with_a_comment(mock):
+    mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(comments=1))
+    mock.get(
+        f"{GH}/repos/acme/beans/issues/7/comments",
+        json=[{"user": {"login": "grace"}, "body": "On it.", "created_at": "x"}],
+    )
+
+
+def _mock_edit(mock):
+    mock.put(f"{JIRA}/issue/PROJ-1", status_code=204)
+    mock.get(f"{JIRA}/issue/PROJ-1", json=jira_issue())
+
+
+def _mock_assign(mock):
+    mock.get(f"{GH}/user", json={"login": "ada"})
+    mock.patch(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+
+
+def _mock_sources_check(mock):
+    mock.get(f"{GH}/user", json={"login": "ada"})
+    mock.get(f"{JIRA}/myself", status_code=401)
+
+
+@pytest.mark.parametrize(
+    ("mock", "args"),
+    [
+        (_mock_list_with_one_source_down, ("--debug-summary", "list")),
+        (
+            lambda mock: mock.get(f"{GH}/search/issues", json={"items": []}),
+            ("list", "-s", "oss"),
+        ),
+        (_mock_show_with_a_comment, ("show", "oss:#7", "--comments")),
+        (
+            lambda mock: mock.post(f"{GH}/repos/acme/beans/issues", json=gh_issue(8)),
+            ("create", "-s", "oss", "-t", "Buy filters"),
+        ),
+        (_mock_edit, ("edit", "work:PROJ-1", "-t", "New")),
+        (
+            lambda mock: mock.post(
+                f"{GH}/repos/acme/beans/issues/7/comments", json={"body": "Done."}
+            ),
+            ("comment", "oss:#7", "Done."),
+        ),
+        (_mock_assign, ("assign", "oss:#7")),
+        (
+            lambda mock: mock.patch(
+                f"{GH}/repos/acme/beans/issues/7", json=gh_issue(state="closed")
+            ),
+            ("move", "oss:#7", "done"),
+        ),
+        (_mock_sources_check, ("sources", "--check")),
+    ],
+    ids=[
+        "list",
+        "empty",
+        "show",
+        "create",
+        "edit",
+        "comment",
+        "assign",
+        "move",
+        "sources",
+    ],
+)
+def test_no_emoji_means_none_anywhere(grind, requests_mock, mock, args):
+    mock(requests_mock)
+    with_emoji = grind(*args)
+    assert has_emoji(with_emoji.output), "the case should print an emoji to drop"
+    requests_mock.reset_mock()
+    result = grind("--no-emoji", *args)
+    assert result.exit_code == with_emoji.exit_code, result.output
+    assert not has_emoji(result.output), result.output
+
+
+def test_no_emoji_ends_the_progress_line_with_its_dots(grind, both):
+    result = grind("--no-emoji", "list")
+    assert "Grinding through your tickets...\n" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("args", "config"),
+    [(("--no-progress",), ""), ((), "progress = false\n")],
+    ids=["flag", "config"],
+)
+def test_no_progress_leaves_the_progress_line_out(grind, both, args, config):
+    result = grind(*args, "list", config=config + CONFIG)
+    assert result.exit_code == 0, result.output
+    assert "Grinding" not in result.stderr
+    assert "Descale the espresso machine" in result.stdout
+
+
+def test_progress_is_on_by_default_and_the_flag_beats_the_config(grind, both):
+    assert "Grinding" in grind("list").stderr
+    result = grind("--progress", "list", config="progress = false\n" + CONFIG)
+    assert "Grinding" in result.stderr
+
+
+def test_no_progress_still_says_when_there_is_nothing_to_grind(grind, requests_mock):
+    requests_mock.get(f"{GH}/search/issues", json={"items": []})
+    result = grind("--no-progress", "list", "-s", "oss")
+    assert result.stderr.startswith("☕ Nothing to grind.")
+
+
+def test_no_emoji_marks_a_failed_source_check_in_words(grind, requests_mock):
+    _mock_sources_check(requests_mock)
+    result = grind("--no-emoji", "sources", "--check")
+    assert result.exit_code == 1
+    assert "error: Source 'work' answered 401" in result.stdout
+
+
+@pytest.mark.parametrize("name", FACT_EMOJI)
+def test_every_field_emoji_is_two_cells_wide(name):
+    icon = FACT_EMOJI[name]
+    assert len(icon) == 1
+    assert unicodedata.east_asian_width(icon) == "W"
+    assert wcswidth(icon) == 2
 
 
 @pytest.mark.parametrize(
@@ -327,8 +499,20 @@ def test_show_colours_labels_and_values_from_the_theme(
     result = run_in_colour(tmp_path, monkeypatch, "--theme", theme, "show", "oss:#7")
     assert result.exit_code == 0, result.output
     status = next(line for line in result.stdout.splitlines() if "Status:" in line)
-    assert status.startswith(f"  \x1b[1m{label}Status:")
+    assert status.startswith(f"  🚦 \x1b[1m{label}Status:")
     assert f"{value}open" in status
+
+
+def test_no_emoji_keeps_the_label_and_value_colours(
+    tmp_path, monkeypatch, requests_mock
+):
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+    result = run_in_colour(tmp_path, monkeypatch, "--no-emoji", "show", "oss:#7")
+    assert result.exit_code == 0, result.output
+    status = next(line for line in result.stdout.splitlines() if "Status:" in line)
+    # The default theme's caramel label and latte value, as with the emoji on.
+    assert status.startswith("  \x1b[1m\x1b[38;5;173mStatus:")
+    assert "\x1b[38;5;180mopen" in status
 
 
 def test_show_comments_and_json(grind, requests_mock):

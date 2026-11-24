@@ -204,3 +204,25 @@ def test_perform_update_cleans_up_after_a_keyboard_interrupt(
 
     assert installed_exe.read_bytes() == b"old binary"
     assert [f.name for f in installed_exe.parent.iterdir()] == ["grind"]
+
+
+# ── check_for_update ────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("emoji", "first", "summary"),
+    [
+        (True, "🍟 A fresh order is ready!", "  📋 Faster brewing"),
+        (False, "A fresh order is ready!", "  Faster brewing"),
+    ],
+)
+def test_the_update_notice_drops_its_emoji_when_asked(
+    tmp_path, monkeypatch, emoji, first, summary
+):
+    monkeypatch.setattr(upd, "get_cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(upd, "pkg_version", lambda _name: "1.0.0")
+    upd._write_version_cache("2.0.0", "Faster brewing")
+    notice = upd.check_for_update(show_summary=True, emoji=emoji)
+    headline, body = notice.splitlines()
+    assert headline.startswith(first)
+    assert body == summary
