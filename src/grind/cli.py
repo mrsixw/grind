@@ -32,11 +32,11 @@ from .constants import (
     APP_ITEMS,
     APP_NAME,
     BINARY_NAME,
-    BODY_STYLES,
-    DEFAULT_BODY_STYLE,
     DEFAULT_CACHE_TTL,
+    DEFAULT_SECTION_STYLE,
     DEFAULT_TABLE_STYLE,
     ENVVAR_PREFIX,
+    SECTION_STYLES,
     TABLE_STYLES,
 )
 from .logger import configure as configure_logging
@@ -140,11 +140,11 @@ def resolve_option(flag_value, cfg: dict, key: str, default):
     help=f"How tables are drawn. Default: {DEFAULT_TABLE_STYLE}.",
 )
 @click.option(
-    "--body-style",
-    type=click.Choice(BODY_STYLES),
+    "--section-style",
+    type=click.Choice(SECTION_STYLES),
     default=None,
     help="How show lays out the description and comments under their headings. "
-    f"Default: {DEFAULT_BODY_STYLE}.",
+    f"Default: {DEFAULT_SECTION_STYLE}.",
 )
 @click.option(
     "--emoji/--no-emoji",
@@ -236,7 +236,7 @@ def main(
     seasonal_colours,
     seasonal_calendar,
     table_style,
-    body_style,
+    section_style,
     emoji,
     progress,
     no_colour,
@@ -286,9 +286,9 @@ def main(
             TABLE_STYLES,
         )
         layout = _config_choice(
-            "body-style",
-            resolve_option(body_style, cfg, "body-style", DEFAULT_BODY_STYLE),
-            BODY_STYLES,
+            "section-style",
+            resolve_option(section_style, cfg, "section-style", DEFAULT_SECTION_STYLE),
+            SECTION_STYLES,
         )
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
@@ -307,7 +307,7 @@ def main(
         ),
         colour=not (no_colour or cfg.get("no-colour", False)),
         table_style=style,
-        body_style=layout,
+        section_style=layout,
         emoji=resolve_option(emoji, cfg, "emoji", True),
         progress=resolve_option(progress, cfg, "progress", True),
         cache_enabled=resolve_option(cache_enabled, cfg, "cache", False),
@@ -483,8 +483,8 @@ _RULE = "─"
 
 
 @dataclass(frozen=True)
-class _BodyLayout:
-    """Where one ``--body-style`` puts a ``show`` section's lines."""
+class _SectionLayout:
+    """Where one ``--section-style`` puts a ``show`` section's lines."""
 
     #: In front of the heading and its rule.
     heading: str
@@ -496,10 +496,10 @@ class _BodyLayout:
 
 #: Indent and gutter line their headings up with the fields above; plain
 #: keeps everything flush left.
-_BODY_LAYOUTS = {
-    "indent": _BodyLayout(heading="  ", text="    ", nest="  "),
-    "gutter": _BodyLayout(heading="  ", text="  │ ", nest="  "),
-    "plain": _BodyLayout(heading="", text="", nest=""),
+_SECTION_LAYOUTS = {
+    "indent": _SectionLayout(heading="  ", text="    ", nest="  "),
+    "gutter": _SectionLayout(heading="  ", text="  │ ", nest="  "),
+    "plain": _SectionLayout(heading="", text="", nest=""),
 }
 _NO_SOURCES = (
     "No sources configured, so there is nothing to grind. Run "
@@ -628,7 +628,7 @@ def _render_ticket(settings: Settings, ticket: Ticket) -> str:
     lines += [
         _render_fact(settings, label, value) for label, value in facts.items() if value
     ]
-    layout = _BODY_LAYOUTS[settings.body_style]
+    layout = _SECTION_LAYOUTS[settings.section_style]
     # A description of only whitespace has nothing to put under a heading.
     if ticket.body.strip():
         lines += _render_heading(settings, layout, _DESCRIPTION_EMOJI, "Description")
@@ -646,7 +646,7 @@ def _render_ticket(settings: Settings, ticket: Ticket) -> str:
 
 
 def _render_heading(
-    settings: Settings, layout: _BodyLayout, emoji: str, title: str
+    settings: Settings, layout: _SectionLayout, emoji: str, title: str
 ) -> list[str]:
     """A ``show`` section heading with a rule under it, after a blank line."""
     heading = settings.with_emoji(emoji, title)
@@ -661,9 +661,15 @@ def _render_block(prefix: str, text: str) -> list[str]:
     """*text* with *prefix* on every line, its blank lines included.
 
     A blank line keeps the prefix too (less any trailing space), so in the
-    gutter style the bar runs unbroken from the first line to the last.
+    gutter style the bar runs unbroken from the first line to the last. Blank
+    lines at either end are dropped, so none opens a gap under a heading; an
+    indented first line keeps its indent. Tabs are expanded first, since the
+    prefix would otherwise move the text off the terminal's tab stops.
     """
-    return [f"{prefix}{line}".rstrip() for line in text.rstrip().splitlines()]
+    lines = text.expandtabs().rstrip().splitlines()
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    return [f"{prefix}{line}".rstrip() for line in lines]
 
 
 def _emit_ticket(settings: Settings, ticket: Ticket, output_format: str) -> None:

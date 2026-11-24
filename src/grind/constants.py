@@ -13,12 +13,11 @@ __all__ = [
     "BINARY_NAME",
     "BIRTHDAY",
     "BIRTHDAY_NAME",
-    "BODY_STYLES",
     "CAKE_RECIPES",
     "CHRISTMAS",
     "COFFEE_RECIPES",
-    "DEFAULT_BODY_STYLE",
     "DEFAULT_CACHE_TTL",
+    "DEFAULT_SECTION_STYLE",
     "DEFAULT_TABLE_STYLE",
     "DIWALI",
     "EID_AL_ADHA",
@@ -37,6 +36,7 @@ __all__ = [
     "RELEASE_ASSET_URL",
     "ROSH_HASHANAH",
     "SEASONAL_PALETTES",
+    "SECTION_STYLES",
     "SUKKOT_START",
     "TABLE_STYLES",
     "TTL_SUFFIX_MAP",
@@ -90,10 +90,10 @@ DEFAULT_TABLE_STYLE = "outline"
 
 # ── show ───────────────────────────────────────────────────────────────────
 
-#: How ``--body-style`` lays out the text under each of ``show``'s section
+#: How ``--section-style`` lays out the text under each of ``show``'s section
 #: headings: indented, marked down its left edge with a bar, or flush left.
-BODY_STYLES = ("indent", "gutter", "plain")
-DEFAULT_BODY_STYLE = "indent"
+SECTION_STYLES = ("indent", "gutter", "plain")
+DEFAULT_SECTION_STYLE = "indent"
 
 # ── UI & theming ───────────────────────────────────────────────────────────
 

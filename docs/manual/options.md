@@ -71,7 +71,7 @@ description stays inside it, and each comment starts with its author and date:
 
 A ticket with no description has no Description heading, and the Comments
 heading appears only with `--comments` and when there are comments.
-[`--body-style`](#--body-style) chooses another layout.
+[`--section-style`](#--section-style) chooses another layout.
 
 ### `create`
 
@@ -227,7 +227,7 @@ terminal cells, so emoji and other wide characters count double.
 
 Config key: `table-style = "outline"`
 
-### `--body-style`
+### `--section-style`
 
 Choose how `show` lays out the description and comments under their headings.
 Every style keeps the headings.
@@ -248,10 +248,10 @@ Every style keeps the headings.
 ```
 
 ```bash
-grind --body-style gutter show oss:#7
+grind --section-style gutter show oss:#7
 ```
 
-Config key: `body-style = "indent"`
+Config key: `section-style = "indent"`
 
 ### `--emoji` / `--no-emoji`
 
