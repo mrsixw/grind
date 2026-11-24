@@ -59,6 +59,12 @@ _DEFAULT_CONFIG_CONTENT = """\
 # Equivalent to: --table-style <name>
 # table-style = "outline"
 
+# How show lays out the description and comments under their headings:
+# indented, marked with a bar down the left edge, or flush left.
+# Choices: indent, gutter, plain
+# Equivalent to: --body-style <name>
+# body-style = "indent"
+
 # Print emoji: in front of each field in show, on the progress line and in
 # messages. Turning them off keeps the colours, including the ones that set
 # each show field's name apart from its value.

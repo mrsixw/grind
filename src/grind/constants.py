@@ -13,9 +13,11 @@ __all__ = [
     "BINARY_NAME",
     "BIRTHDAY",
     "BIRTHDAY_NAME",
+    "BODY_STYLES",
     "CAKE_RECIPES",
     "CHRISTMAS",
     "COFFEE_RECIPES",
+    "DEFAULT_BODY_STYLE",
     "DEFAULT_CACHE_TTL",
     "DEFAULT_TABLE_STYLE",
     "DIWALI",
@@ -85,6 +87,13 @@ TTL_SUFFIX_MAP = {"s": 1, "m": 60, "h": 3600}
 TABLE_STYLES = ("outline", "rounded_outline", "grid", "simple", "github", "plain")
 #: breakfast's style, so the sibling apps look alike out of the box.
 DEFAULT_TABLE_STYLE = "outline"
+
+# ── show ───────────────────────────────────────────────────────────────────
+
+#: How ``--body-style`` lays out the text under each of ``show``'s section
+#: headings: indented, marked down its left edge with a bar, or flush left.
+BODY_STYLES = ("indent", "gutter", "plain")
+DEFAULT_BODY_STYLE = "indent"
 
 # ── UI & theming ───────────────────────────────────────────────────────────
 

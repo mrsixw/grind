@@ -48,6 +48,31 @@ oss:acme/beans#7  Descale the espresso machine
 [`--no-emoji`](#--emoji----no-emoji) leaves them out. The labels and values
 keep their colours.
 
+The description and the comments each come under a heading, with a rule
+beneath it, and their text is indented under it. A blank line inside the
+description stays inside it, and each comment starts with its author and date:
+
+```text
+  📝 Description
+  ──────────────
+    Slow shots all week.
+
+    Steps:
+    - run the descaler
+
+  💬 Comments (2)
+  ───────────────
+    grace · 2026-11-02
+      Bought descaler.
+
+    ada · 2026-11-03
+      Done.
+```
+
+A ticket with no description has no Description heading, and the Comments
+heading appears only with `--comments` and when there are comments.
+[`--body-style`](#--body-style) chooses another layout.
+
 ### `create`
 
 Create a ticket. Prints the new reference on stdout.
@@ -202,12 +227,39 @@ terminal cells, so emoji and other wide characters count double.
 
 Config key: `table-style = "outline"`
 
+### `--body-style`
+
+Choose how `show` lays out the description and comments under their headings.
+Every style keeps the headings.
+
+| Style | Layout |
+| ----- | ------ |
+| `indent` | The text is indented under each heading. The default |
+| `gutter` | A `│` bar runs down the left of the text, blank lines included |
+| `plain` | Headings and text start at the left edge |
+
+```text
+  📝 Description
+  ──────────────
+  │ Slow shots all week.
+  │
+  │ Steps:
+  │ - run the descaler
+```
+
+```bash
+grind --body-style gutter show oss:#7
+```
+
+Config key: `body-style = "indent"`
+
 ### `--emoji` / `--no-emoji`
 
 Print emoji (enabled by default). `--no-emoji` turns off every one grind
 prints:
 
-- the icon in front of each field in `show`, and the 💬 on its comments
+- the icon in front of each field in `show`, and the 📝 and 💬 on its
+  Description and Comments headings
 - the emoji at the end of the progress line, which then ends in its dots:
   `Grinding through your tickets...`
 - the emoji in messages: tickets created, edited, commented on, assigned or

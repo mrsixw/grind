@@ -230,7 +230,8 @@ def test_show_comments_and_json(grind, stocked):
     plain = grind("show", "work:PROJ-1")
     assert "Ordered." not in plain.stdout
     text = grind("show", "work:PROJ-1", "--comments")
-    assert "💬 Grace" in text.stdout
+    assert "💬 Comments (1)" in text.stdout
+    assert "Grace · " in text.stdout
     assert "Ordered." in text.stdout
     as_json = grind("show", "work:PROJ-1", "--comments", "--format", "json")
     assert json.loads(as_json.stdout)["comments"][0]["body"] == "Ordered."

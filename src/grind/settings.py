@@ -9,7 +9,7 @@ parameters.
 import time
 from dataclasses import dataclass, field
 
-from .constants import DEFAULT_TABLE_STYLE
+from .constants import DEFAULT_BODY_STYLE, DEFAULT_TABLE_STYLE
 from .ui import Theme, apply_seasonal_colour, seasonal_colour, with_emoji
 
 __all__ = [
@@ -30,6 +30,8 @@ class Settings:
     colour: bool = True
     #: A tabulate format name, one of ``constants.TABLE_STYLES``.
     table_style: str = DEFAULT_TABLE_STYLE
+    #: How ``show`` lays out its sections, one of ``constants.BODY_STYLES``.
+    body_style: str = DEFAULT_BODY_STYLE
     #: Whether grind prints emoji. Off, every message reads the same without.
     emoji: bool = True
     #: Whether ``list`` prints its progress line on stderr.
