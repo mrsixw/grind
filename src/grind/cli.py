@@ -18,7 +18,7 @@ import random
 import shutil
 import sys
 import time
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, replace
 from enum import StrEnum, auto
 
 import click
@@ -35,28 +35,40 @@ from .config import (
     write_default_config,
 )
 from .constants import (
+    ACTIVE_CONTEXT_PLAIN,
     APP_ITEMS,
     APP_NAME,
     ASSIGNEE_EMOJI,
     BINARY_NAME,
+    CHECK_FAILED_PLAIN,
     COFFEE_EMOJI,
     COMMENT_EMOJI,
     CREATED_EMOJI,
     DEBUG_EMOJI,
     DEFAULT_CACHE_TTL,
+    DEFAULT_LIMIT,
     DEFAULT_SECTION_STYLE,
     DEFAULT_TABLE_STYLE,
     DESCRIPTION_EMOJI,
     EDITED_EMOJI,
     ENVVAR_PREFIX,
     FACT_EMOJI,
+    FACT_LABEL_WIDTH,
     FAILURE_EMOJI,
+    LABEL_PALETTE_INDEX,
     MOVED_EMOJI,
+    NO_SOURCES_MESSAGE,
+    OUTPUT_FORMATS,
+    SECTION_LAYOUTS,
+    SECTION_RULE,
     SECTION_STYLES,
+    STATE_NOUNS,
     SUCCESS_EMOJI,
     TABLE_STYLES,
     UPDATE_CHECK_EMOJI,
+    VALUE_PALETTE_INDEX,
     WARNING_EMOJI,
+    SectionLayout,
 )
 from .contexts import (
     ContextError,
@@ -562,50 +574,9 @@ def finish_run(
 
 # ── Tickets ─────────────────────────────────────────────────────────────────
 
-_FORMATS = ("table", "json")
-#: Most tickets ``list`` fetches per source unless told otherwise.
-_DEFAULT_LIMIT = 50
-#: How the scope line names each ``--state``.
-_STATE_NOUNS = {"open": "open tickets", "closed": "closed tickets", "all": "tickets"}
-#: Cells a ``show`` field label is padded to, so the values line up.
-_FACT_LABEL_WIDTH = 10
-#: Palette positions for labels and values on days a seasonal palette cycles.
-_LABEL_INDEX = 0
-_VALUE_INDEX = 1
-#: What the rule under a ``show`` section heading is drawn with.
-_RULE = "─"
 #: The narrowest the text under a ``show`` heading is wrapped to, so a tiny
 #: window still gets whole words on each line rather than a letter or two.
 _MIN_TEXT_WIDTH = 20
-
-
-@dataclass(frozen=True)
-class _SectionLayout:
-    """Where one ``--section-style`` puts a ``show`` section's lines."""
-
-    #: In front of the heading and its rule.
-    heading: str
-    #: In front of every line of the section's text, blank ones included.
-    text: str
-    #: Added to ``text`` for a comment's own lines, under its author line.
-    nest: str
-
-
-#: Indent and gutter line their headings up with the fields above; plain
-#: keeps everything flush left.
-_SECTION_LAYOUTS = {
-    "indent": _SectionLayout(heading="  ", text="    ", nest="  "),
-    "gutter": _SectionLayout(heading="  ", text="  │ ", nest="  "),
-    "plain": _SectionLayout(heading="", text="", nest=""),
-}
-
-
-#: What ``sources --check`` puts before a failure when emoji are off.
-_CHECK_FAILED = "error:"
-_NO_SOURCES = (
-    "No sources configured, so there is nothing to grind. Run "
-    f"`{BINARY_NAME} config init` and add a [sources.<name>] table."
-)
 
 
 def _fail(exc: ProviderError) -> click.ClickException:
@@ -626,7 +597,7 @@ def _load_sources(
     except ProviderError as exc:
         raise _fail(exc) from exc
     if not sources:
-        raise click.ClickException(_NO_SOURCES)
+        raise click.ClickException(NO_SOURCES_MESSAGE)
     context = settings.context
     if context is None:
         return sources
@@ -719,9 +690,10 @@ def _request_rows(sources: dict[str, Provider]) -> dict[str, str]:
 
 def _format(settings: Settings, output_format: str | None) -> str:
     chosen = resolve_option(output_format, settings.cfg, "format", "table")
-    if chosen not in _FORMATS:
+    if chosen not in OUTPUT_FORMATS:
         raise click.ClickException(
-            f"Invalid format '{chosen}' in config. Choose from: {', '.join(_FORMATS)}."
+            f"Invalid format '{chosen}' in config. "
+            f"Choose from: {', '.join(OUTPUT_FORMATS)}."
         )
     return chosen
 
@@ -747,13 +719,13 @@ def _render_fact(settings: Settings, label: str, value: str) -> str:
     colour, and there the bold is what keeps the label apart from its value.
     """
     icon = f"{FACT_EMOJI[label]} " if settings.emoji else ""
-    name = f"{label + ':':<{_FACT_LABEL_WIDTH}}"
+    name = f"{label + ':':<{FACT_LABEL_WIDTH}}"
     if not settings.colour:
         return f"  {icon}{name}{value}"
     painted = click.style(
-        settings.paint(name, role="label", index=_LABEL_INDEX), bold=True
+        settings.paint(name, role="label", index=LABEL_PALETTE_INDEX), bold=True
     )
-    shown = settings.paint(value, role="value", index=_VALUE_INDEX)
+    shown = settings.paint(value, role="value", index=VALUE_PALETTE_INDEX)
     return f"  {icon}{painted}{shown}"
 
 
@@ -774,7 +746,7 @@ def _render_ticket(settings: Settings, ticket: Ticket) -> str:
     lines += [
         _render_fact(settings, label, value) for label, value in facts.items() if value
     ]
-    layout = _SECTION_LAYOUTS[settings.section_style]
+    layout = SECTION_LAYOUTS[settings.section_style]
     columns = terminal_columns()
     # A description of only whitespace has nothing to put under a heading.
     if ticket.body.strip():
@@ -793,11 +765,11 @@ def _render_ticket(settings: Settings, ticket: Ticket) -> str:
 
 
 def _render_heading(
-    settings: Settings, layout: _SectionLayout, emoji: str, title: str
+    settings: Settings, layout: SectionLayout, emoji: str, title: str
 ) -> list[str]:
     """A ``show`` section heading with a rule under it, after a blank line."""
     heading = settings.with_emoji(emoji, title)
-    rule = _RULE * wcswidth(heading)
+    rule = SECTION_RULE * wcswidth(heading)
     if settings.colour:
         heading = click.style(settings.paint(heading, role="accent"), bold=True)
         rule = settings.paint(rule, role="accent")
@@ -920,7 +892,7 @@ def _describe_scope(
         parts.append(f"assigned to you in {', '.join(yours)}")
     if everyones:
         parts.append(f"for everyone in {', '.join(everyones)}")
-    line = f"Grinding through {_STATE_NOUNS[query.state]} {'; '.join(parts)}"
+    line = f"Grinding through {STATE_NOUNS[query.state]} {'; '.join(parts)}"
     if query.containers:
         line += f", within {', '.join(query.containers)}"
     if query.text:
@@ -1001,7 +973,7 @@ def _cached_list(
 @click.option(
     "--format",
     "output_format",
-    type=click.Choice(_FORMATS),
+    type=click.Choice(OUTPUT_FORMATS),
     default=None,
     help="Output format. Default: table.",
 )
@@ -1025,7 +997,7 @@ def list_tickets(
     query = ListQuery(
         state=state,
         text=text,
-        limit=resolve_option(limit, settings.cfg, "limit", _DEFAULT_LIMIT),
+        limit=resolve_option(limit, settings.cfg, "limit", DEFAULT_LIMIT),
         containers=tuple(containers),
     )
     # The flag decides for every source; without it, each source's own default.
@@ -1077,7 +1049,7 @@ def list_tickets(
 @click.option(
     "--format",
     "output_format",
-    type=click.Choice(_FORMATS),
+    type=click.Choice(OUTPUT_FORMATS),
     default=None,
     help="Output format. Default: table.",
 )
@@ -1294,14 +1266,14 @@ def list_sources(settings: Settings, check: bool, show_plugin_dir: bool):
             except ProviderError as exc:
                 failed = True
                 # Without the emoji, a word keeps a failure from passing as a name.
-                failure = f"{exc}" if settings.emoji else f"{_CHECK_FAILED} {exc}"
+                failure = f"{exc}" if settings.emoji else f"{CHECK_FAILED_PLAIN} {exc}"
                 row.append(settings.with_emoji(FAILURE_EMOJI, failure))
         rows.append(row)
     if rows:
         headers = ["SOURCE", "PROVIDER", "URL"] + (["CHECK"] if check else [])
         click.echo(render_table(settings, headers, rows))
     else:
-        click.echo(_NO_SOURCES, err=True)
+        click.echo(NO_SOURCES_MESSAGE, err=True)
     click.echo("")
     click.echo(
         render_table(
@@ -1314,10 +1286,6 @@ def list_sources(settings: Settings, check: bool, show_plugin_dir: bool):
 
 
 # ── Working contexts ────────────────────────────────────────────────────────
-
-#: Marks the active context in ``context list`` when emoji are off; with them
-#: on, the mark is COFFEE_EMOJI.
-_ACTIVE_MARK_PLAIN = "*"
 
 
 @main.group("context", invoke_without_command=True)
@@ -1357,7 +1325,7 @@ def context_list(settings: Settings):
         )
         return
     active = settings.context.name if settings.context else None
-    mark = COFFEE_EMOJI if settings.emoji else _ACTIVE_MARK_PLAIN
+    mark = COFFEE_EMOJI if settings.emoji else ACTIVE_CONTEXT_PLAIN
     rows = [
         [mark if name == active else "", name, context.describe()]
         for name, context in settings.contexts.items()

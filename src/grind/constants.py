@@ -7,7 +7,10 @@ modules. Nothing here imports from the rest of the package, so it is always
 safe to import from anywhere.
 """
 
+from typing import NamedTuple
+
 __all__ = [
+    "ACTIVE_CONTEXT_PLAIN",
     "APP_ITEMS",
     "APP_NAME",
     "ASSIGNEE_EMOJI",
@@ -17,6 +20,7 @@ __all__ = [
     "BIRTHDAY_NAME",
     "CAKE_EMOJI",
     "CAKE_RECIPES",
+    "CHECK_FAILED_PLAIN",
     "CHRISTMAS",
     "CHRISTMAS_EMOJI",
     "COFFEE_EMOJI",
@@ -26,6 +30,7 @@ __all__ = [
     "CREATED_EMOJI",
     "DEBUG_EMOJI",
     "DEFAULT_CACHE_TTL",
+    "DEFAULT_LIMIT",
     "DEFAULT_SECTION_STYLE",
     "DEFAULT_TABLE_STYLE",
     "DESCRIPTION_EMOJI",
@@ -36,15 +41,19 @@ __all__ = [
     "ENTRY_POINT_GROUP",
     "ENVVAR_PREFIX",
     "FACT_EMOJI",
+    "FACT_LABEL_WIDTH",
     "FAILURE_EMOJI",
     "GIFT_EMOJI",
     "HANUKKAH_START",
     "HOLI_DATES",
     "HOLI_RAINBOW",
     "HTTP_TIMEOUT_SECONDS",
+    "LABEL_PALETTE_INDEX",
     "LOG_FILENAME",
     "MID_AUTUMN",
     "MOVED_EMOJI",
+    "NO_SOURCES_MESSAGE",
+    "OUTPUT_FORMATS",
     "PASSOVER_START",
     "PASTRY_EMOJI",
     "PASTRY_RECIPES",
@@ -53,9 +62,13 @@ __all__ = [
     "RELEASE_NOTES_EMOJI",
     "ROSH_HASHANAH",
     "SEASONAL_PALETTES",
+    "SECTION_LAYOUTS",
+    "SECTION_RULE",
     "SECTION_STYLES",
+    "STATE_NOUNS",
     "SUCCESS_EMOJI",
     "SUKKOT_START",
+    "SectionLayout",
     "TABLE_STYLES",
     "TIP_EMOJI",
     "TTL_SUFFIX_MAP",
@@ -63,6 +76,7 @@ __all__ = [
     "UPDATE_CHECK_EMOJI",
     "UPDATE_CHECK_REPO",
     "USER_AGENT",
+    "VALUE_PALETTE_INDEX",
     "VERSION_CACHE_FILENAME",
     "VERSION_CACHE_TTL_SECONDS",
     "WARNING_EMOJI",
@@ -110,11 +124,56 @@ TABLE_STYLES = ("outline", "rounded_outline", "grid", "simple", "github", "plain
 #: breakfast's style, so the sibling apps look alike out of the box.
 DEFAULT_TABLE_STYLE = "outline"
 
+# ── Tickets ────────────────────────────────────────────────────────────────
+
+#: What ``--format`` accepts for ``list`` and ``show``.
+OUTPUT_FORMATS = ("table", "json")
+#: Most tickets ``list`` fetches per source unless told otherwise.
+DEFAULT_LIMIT = 50
+#: How ``list``'s progress line names each ``--state``.
+STATE_NOUNS = {"open": "open tickets", "closed": "closed tickets", "all": "tickets"}
+#: What ``sources --check`` puts before a failure when emoji are off.
+CHECK_FAILED_PLAIN = "error:"
+#: Marks the active context in ``context list`` when emoji are off; with them
+#: on, the mark is COFFEE_EMOJI.
+ACTIVE_CONTEXT_PLAIN = "*"
+NO_SOURCES_MESSAGE = (
+    "No sources configured, so there is nothing to grind. Run "
+    f"`{BINARY_NAME} config init` and add a [sources.<name>] table."
+)
+
 # ── show ───────────────────────────────────────────────────────────────────
 
-#: How ``--section-style`` lays out the text under each of ``show``'s section
-#: headings: indented, marked down its left edge with a bar, or flush left.
-SECTION_STYLES = ("indent", "gutter", "plain")
+#: Cells a ``show`` field label is padded to, so the values line up.
+FACT_LABEL_WIDTH = 10
+#: Palette positions for labels and values on days a seasonal palette cycles.
+LABEL_PALETTE_INDEX = 0
+VALUE_PALETTE_INDEX = 1
+#: What the rule under a ``show`` section heading is drawn with.
+SECTION_RULE = "─"
+
+
+class SectionLayout(NamedTuple):
+    """Where one ``--section-style`` puts a ``show`` section's lines."""
+
+    #: In front of the heading and its rule.
+    heading: str
+    #: In front of every line of the section's text, blank ones included.
+    text: str
+    #: Added to ``text`` for a comment's own lines, under its author line.
+    nest: str
+
+
+#: What each ``--section-style`` does with the text under a heading: indent
+#: it, mark it down its left edge with a bar, or leave it flush left. Indent
+#: and gutter line their headings up with the fields above.
+SECTION_LAYOUTS = {
+    "indent": SectionLayout(heading="  ", text="    ", nest="  "),
+    "gutter": SectionLayout(heading="  ", text="  │ ", nest="  "),
+    "plain": SectionLayout(heading="", text="", nest=""),
+}
+#: The ``--section-style`` choices, in help-text order.
+SECTION_STYLES = tuple(SECTION_LAYOUTS)
 DEFAULT_SECTION_STYLE = "indent"
 
 # ── UI & theming ───────────────────────────────────────────────────────────
