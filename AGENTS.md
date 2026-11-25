@@ -43,6 +43,7 @@
 ## Tone and Personality
 - Coffee-shop whimsy in the UI layer only: the coffee-coloured default theme, spinner emoji, "Nothing to grind", the `--brew` and `--pastry` easter eggs. Keep the code underneath plain.
 - Colour goes through `settings.paint` (theme with seasonal override) or `settings.theme.apply(text, role=...)`. Never hardcode a `fg=` colour in a command, or it ignores `--theme`.
+- Emoji are named constants in `constants.py` (`WARNING_EMOJI`, `FACT_EMOJI`, ...), one per meaning, never literals in a message. `tests/test_emoji_constants.py` enforces it.
 - Command names stay literal (`list`, `create`, `move`) so nobody has to learn a pun to file a ticket.
 
 ## Environment

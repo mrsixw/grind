@@ -10,40 +10,62 @@ safe to import from anywhere.
 __all__ = [
     "APP_ITEMS",
     "APP_NAME",
+    "ASSIGNEE_EMOJI",
+    "BACKUP_EMOJI",
     "BINARY_NAME",
     "BIRTHDAY",
     "BIRTHDAY_NAME",
+    "CAKE_EMOJI",
     "CAKE_RECIPES",
     "CHRISTMAS",
+    "CHRISTMAS_EMOJI",
+    "COFFEE_EMOJI",
     "COFFEE_RECIPES",
+    "COMMENT_EMOJI",
+    "CONFIG_UPDATE_EMOJI",
+    "CREATED_EMOJI",
+    "DEBUG_EMOJI",
     "DEFAULT_CACHE_TTL",
     "DEFAULT_SECTION_STYLE",
     "DEFAULT_TABLE_STYLE",
+    "DESCRIPTION_EMOJI",
     "DIWALI",
+    "EDITED_EMOJI",
     "EID_AL_ADHA",
     "EID_AL_FITR",
     "ENTRY_POINT_GROUP",
     "ENVVAR_PREFIX",
+    "FACT_EMOJI",
+    "FAILURE_EMOJI",
+    "GIFT_EMOJI",
     "HANUKKAH_START",
     "HOLI_DATES",
     "HOLI_RAINBOW",
     "HTTP_TIMEOUT_SECONDS",
     "LOG_FILENAME",
     "MID_AUTUMN",
+    "MOVED_EMOJI",
     "PASSOVER_START",
+    "PASTRY_EMOJI",
     "PASTRY_RECIPES",
     "PRIDE_RAINBOW",
     "RELEASE_ASSET_URL",
+    "RELEASE_NOTES_EMOJI",
     "ROSH_HASHANAH",
     "SEASONAL_PALETTES",
     "SECTION_STYLES",
+    "SUCCESS_EMOJI",
     "SUKKOT_START",
     "TABLE_STYLES",
+    "TIP_EMOJI",
     "TTL_SUFFIX_MAP",
+    "UPDATE_AVAILABLE_EMOJI",
+    "UPDATE_CHECK_EMOJI",
     "UPDATE_CHECK_REPO",
     "USER_AGENT",
     "VERSION_CACHE_FILENAME",
     "VERSION_CACHE_TTL_SECONDS",
+    "WARNING_EMOJI",
 ]
 
 # ── App identity ───────────────────────────────────────────────────────────
@@ -132,6 +154,65 @@ HOLI_RAINBOW = [
 
 # Spinner items — coffee-shop counter themed ☕🥐🍩
 APP_ITEMS = ["☕", "🫘", "🥐", "🍩", "🧋", "🫖", "🥛", "🍪", "🧁", "🥯"]
+
+# ── Emoji ──────────────────────────────────────────────────────────────────
+#
+# Every emoji grind prints, named for what it marks, so each is defined once.
+# ui.with_emoji (or a check of settings.emoji) decides whether it is printed.
+
+#: grind's own mark: an empty queue, the active context, the coffee recipes.
+COFFEE_EMOJI = "☕"
+#: Something went wrong but grind carried on: a source down, a stale context.
+WARNING_EMOJI = "⚠️"
+#: A check passed or a file was written.
+SUCCESS_EMOJI = "✅"
+#: A source failed ``sources --check``.
+FAILURE_EMOJI = "❌"
+#: Heads the ``--debug-summary`` table.
+DEBUG_EMOJI = "🐛"
+#: ``update`` looking for a newer release.
+UPDATE_CHECK_EMOJI = "🔍"
+#: The notice that a newer release is out.
+UPDATE_AVAILABLE_EMOJI = "🍟"
+#: The release notes under that notice.
+RELEASE_NOTES_EMOJI = "📋"
+#: ``config update`` starting on a config file.
+CONFIG_UPDATE_EMOJI = "📋"
+#: ``config update`` saving a backup of the old file.
+BACKUP_EMOJI = "💾"
+
+#: The messages after a write: each names what was done to the ticket.
+CREATED_EMOJI = "🫘"
+EDITED_EMOJI = "✏️"
+MOVED_EMOJI = "➡️"
+#: A comment: one added, and the heading over a ticket's comments in ``show``.
+COMMENT_EMOJI = "💬"
+#: An assignee: the ``assign`` message, and the field in ``show``.
+ASSIGNEE_EMOJI = "👤"
+#: The heading over a ticket's description in ``show``.
+DESCRIPTION_EMOJI = "📝"
+#: The icon in front of each ``show`` field. Every one is East Asian Width
+#: "W" with emoji presentation by default, so each takes exactly two cells and
+#: the values stay aligned. Emoji needing a variation selector (🏷️, ✍️) are
+#: avoided: terminals disagree on how wide those are. DESCRIPTION_EMOJI and
+#: COMMENT_EMOJI are "W" too, so the rule under each heading measures true.
+FACT_EMOJI = {
+    "Status": "🚦",
+    "Type": "🧩",
+    "Assignee": ASSIGNEE_EMOJI,
+    "Reporter": "📣",
+    "Labels": "🔖",
+    "Created": "📅",
+    "Updated": "🔄",
+    "URL": "🔗",
+}
+
+#: The recipe banners: ``--pastry``, ``--cake``, and the holiday gifts.
+CHRISTMAS_EMOJI = "🎄"
+GIFT_EMOJI = "🎁"
+TIP_EMOJI = "💡"
+PASTRY_EMOJI = "🥐"
+CAKE_EMOJI = "🎂"
 
 # ── Holiday date tables (2024–2045) ────────────────────────────────────────
 #

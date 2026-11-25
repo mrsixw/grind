@@ -20,22 +20,28 @@ import click
 from .constants import (
     BIRTHDAY,
     BIRTHDAY_NAME,
+    CAKE_EMOJI,
     CAKE_RECIPES,
     CHRISTMAS,
+    CHRISTMAS_EMOJI,
+    COFFEE_EMOJI,
     COFFEE_RECIPES,
     DIWALI,
     EID_AL_ADHA,
     EID_AL_FITR,
+    GIFT_EMOJI,
     HANUKKAH_START,
     HOLI_DATES,
     HOLI_RAINBOW,
     MID_AUTUMN,
     PASSOVER_START,
+    PASTRY_EMOJI,
     PASTRY_RECIPES,
     PRIDE_RAINBOW,
     ROSH_HASHANAH,
     SEASONAL_PALETTES,
     SUKKOT_START,
+    TIP_EMOJI,
 )
 from .fsutil import atomic_write_text
 from .logger import logger
@@ -544,9 +550,12 @@ def render_coffee_recipe(
     if colour:
         title = generate_terminal_url_anchor(recipe["source_url"], title)
     if occasion == "christmas":
-        header = f"☕ 🎄 Merry Christmas! Here is a Christmas brew: {title} 🎁"
+        header = (
+            f"{COFFEE_EMOJI} {CHRISTMAS_EMOJI} Merry Christmas! "
+            f"Here is a Christmas brew: {title} {GIFT_EMOJI}"
+        )
     else:
-        header = f"☕ Secret Coffee Recipe: {title}"
+        header = f"{COFFEE_EMOJI} Secret Coffee Recipe: {title}"
 
     source = (
         recipe["source"] if colour else f"{recipe['source']} — {recipe['source_url']}"
@@ -562,7 +571,7 @@ def render_coffee_recipe(
         click.style(f"   Dose:     {recipe['dose']}", fg="white"),
         click.style(f"   Grind:    {recipe['grind']}", fg="white"),
         click.style(f"   Brew:     {recipe['brew']}", fg="white"),
-        click.style(f"   Tip:      💡 {recipe['tip']}", fg="yellow"),
+        click.style(f"   Tip:      {TIP_EMOJI} {recipe['tip']}", fg="yellow"),
         click.style(f"   Source:   {source}", fg="bright_black"),
     ]
     return "\n".join(lines)
@@ -581,13 +590,13 @@ def render_pastry_recipe(recipe: dict, *, colour: bool = True) -> str:
         recipe["source"] if colour else f"{recipe['source']} — {recipe['source_url']}"
     )
     lines = [
-        click.style(f"🥐 Secret Pastry Recipe: {title}", fg=173, bold=True),
+        click.style(f"{PASTRY_EMOJI} Secret Pastry Recipe: {title}", fg=173, bold=True),
         click.style(f"   Style:    {recipe['style']}", fg=180),
         click.style(f"   Dough:    {recipe['dough']}", fg="white"),
         click.style(f"   Butter:   {recipe['butter']}", fg="white"),
         click.style(f"   Shape:    {recipe['shape']}", fg="white"),
         click.style(f"   Bake:     {recipe['bake']}", fg="white"),
-        click.style(f"   Tip:      💡 {recipe['tip']}", fg=179),
+        click.style(f"   Tip:      {TIP_EMOJI} {recipe['tip']}", fg=179),
         click.style(f"   Source:   {source}", fg="bright_black"),
     ]
     return "\n".join(lines)
@@ -603,11 +612,11 @@ def render_cake_recipe(
     """
     if occasion == "birthday":
         header = (
-            f"🎂 It's {BIRTHDAY_NAME}'s birthday, "
-            f"here is a gift: {recipe['title']} 🎁"
+            f"{CAKE_EMOJI} It's {BIRTHDAY_NAME}'s birthday, "
+            f"here is a gift: {recipe['title']} {GIFT_EMOJI}"
         )
     else:
-        header = f"🎂 Secret Cake Recipe: {recipe['title']}"
+        header = f"{CAKE_EMOJI} Secret Cake Recipe: {recipe['title']}"
 
     lines = [
         click.style(
@@ -619,7 +628,7 @@ def render_cake_recipe(
         click.style(f"   Batter:   {recipe['batter']}", fg="white"),
         click.style(f"   Frosting: {recipe['frosting']}", fg="white"),
         click.style(f"   Bake:     {recipe['bake']}", fg="white"),
-        click.style(f"   Tip:      💡 {recipe['tip']}", fg="bright_magenta"),
+        click.style(f"   Tip:      {TIP_EMOJI} {recipe['tip']}", fg="bright_magenta"),
     ]
     return "\n".join(lines)
 

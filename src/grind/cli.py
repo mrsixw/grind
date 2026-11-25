@@ -37,13 +37,26 @@ from .config import (
 from .constants import (
     APP_ITEMS,
     APP_NAME,
+    ASSIGNEE_EMOJI,
     BINARY_NAME,
+    COFFEE_EMOJI,
+    COMMENT_EMOJI,
+    CREATED_EMOJI,
+    DEBUG_EMOJI,
     DEFAULT_CACHE_TTL,
     DEFAULT_SECTION_STYLE,
     DEFAULT_TABLE_STYLE,
+    DESCRIPTION_EMOJI,
+    EDITED_EMOJI,
     ENVVAR_PREFIX,
+    FACT_EMOJI,
+    FAILURE_EMOJI,
+    MOVED_EMOJI,
     SECTION_STYLES,
+    SUCCESS_EMOJI,
     TABLE_STYLES,
+    UPDATE_CHECK_EMOJI,
+    WARNING_EMOJI,
 )
 from .contexts import (
     ContextError,
@@ -84,7 +97,6 @@ from .updater import UpdateStatus, check_for_update, perform_update
 
 __all__ = [
     "CONFIG_FREE_COMMANDS",
-    "FACT_EMOJI",
     "env_flag_is_set",
     "finish_run",
     "main",
@@ -402,7 +414,7 @@ def _choose_context(
         if strict:
             raise ContextError(_unknown_context(flagged, contexts))
         warning = f"{_unknown_context(flagged, contexts)} Ignored."
-        click.echo(with_emoji("⚠️", warning, emoji), err=True)
+        click.echo(with_emoji(WARNING_EMOJI, warning, emoji), err=True)
         return None
     stored = read_active_context()
     if stored is None:
@@ -413,7 +425,7 @@ def _choose_context(
             f"it is ignored. Pick another with `{BINARY_NAME} context use NAME`, "
             f"or clear it with `{BINARY_NAME} context use --none`."
         )
-        click.echo(with_emoji("⚠️", warning, emoji), err=True)
+        click.echo(with_emoji(WARNING_EMOJI, warning, emoji), err=True)
         return None
     return contexts[stored]
 
@@ -524,7 +536,7 @@ def _print_debug_summary(
     }
     width = max(len(label) for label in rows)
     title = settings.theme.apply(
-        settings.with_emoji("🐛", "Debug summary"), role="accent"
+        settings.with_emoji(DEBUG_EMOJI, "Debug summary"), role="accent"
     )
     lines = [click.style(title, bold=True)]
     lines += [f"  {label + ':':<{width + 1}} {value}" for label, value in rows.items()]
@@ -555,24 +567,6 @@ _FORMATS = ("table", "json")
 _DEFAULT_LIMIT = 50
 #: How the scope line names each ``--state``.
 _STATE_NOUNS = {"open": "open tickets", "closed": "closed tickets", "all": "tickets"}
-#: The icon in front of each ``show`` field. Every one is East Asian Width
-#: "W" with emoji presentation by default, so each takes exactly two cells and
-#: the values stay aligned. Emoji needing a variation selector (🏷️, ✍️) are
-#: avoided: terminals disagree on how wide those are.
-FACT_EMOJI = {
-    "Status": "🚦",
-    "Type": "🧩",
-    "Assignee": "👤",
-    "Reporter": "📣",
-    "Labels": "🔖",
-    "Created": "📅",
-    "Updated": "🔄",
-    "URL": "🔗",
-}
-#: The emoji in front of each ``show`` section heading. Both are East Asian
-#: Width "W", like FACT_EMOJI, so the rule under a heading measures true.
-_DESCRIPTION_EMOJI = "📝"
-_COMMENTS_EMOJI = "💬"
 #: Cells a ``show`` field label is padded to, so the values line up.
 _FACT_LABEL_WIDTH = 10
 #: Palette positions for labels and values on days a seasonal palette cycles.
@@ -784,11 +778,11 @@ def _render_ticket(settings: Settings, ticket: Ticket) -> str:
     columns = terminal_columns()
     # A description of only whitespace has nothing to put under a heading.
     if ticket.body.strip():
-        lines += _render_heading(settings, layout, _DESCRIPTION_EMOJI, "Description")
+        lines += _render_heading(settings, layout, DESCRIPTION_EMOJI, "Description")
         lines += _render_block(layout.text, ticket.body, columns)
     if ticket.comments:
         title = f"Comments ({len(ticket.comments)})"
-        lines += _render_heading(settings, layout, _COMMENTS_EMOJI, title)
+        lines += _render_heading(settings, layout, COMMENT_EMOJI, title)
         for number, comment in enumerate(ticket.comments):
             if number:
                 lines.append(layout.text.rstrip())
@@ -1052,7 +1046,9 @@ def list_tickets(
             # One source being down must not hide the others' tickets.
             failed = True
             click.echo(
-                settings.theme.apply(settings.with_emoji("⚠️", str(exc)), role="warn"),
+                settings.theme.apply(
+                    settings.with_emoji(WARNING_EMOJI, str(exc)), role="warn"
+                ),
                 err=True,
                 color=settings.colour,
             )
@@ -1065,7 +1061,7 @@ def list_tickets(
     elif not failed:
         click.echo(
             settings.with_emoji(
-                "☕", "Nothing to grind. The cup is empty — put the kettle on."
+                COFFEE_EMOJI, "Nothing to grind. The cup is empty — put the kettle on."
             ),
             err=True,
         )
@@ -1169,7 +1165,12 @@ def create(
         raise _fail(exc) from exc
     # The bare reference, so `grind show "$(grind create ...)"` composes.
     click.echo(ticket.ref)
-    _done(settings, "🫘", f"Freshly ground: {ticket.title} — {ticket.url}", sources)
+    _done(
+        settings,
+        CREATED_EMOJI,
+        f"Freshly ground: {ticket.title} — {ticket.url}",
+        sources,
+    )
 
 
 @main.command()
@@ -1201,7 +1202,7 @@ def edit(settings: Settings, ref, title, body, body_file, add_labels, remove_lab
     except ProviderError as exc:
         raise _fail(exc) from exc
     click.echo(ticket.ref)
-    _done(settings, "✏️", f"Updated {ticket.ref}.", sources)
+    _done(settings, EDITED_EMOJI, f"Updated {ticket.ref}.", sources)
 
 
 @main.command()
@@ -1224,7 +1225,9 @@ def comment(settings: Settings, ref, body, body_file):
         provider.add_comment(key, text)
     except ProviderError as exc:
         raise _fail(exc) from exc
-    _done(settings, "💬", f"Comment added to {provider.source}:{key}.", sources)
+    _done(
+        settings, COMMENT_EMOJI, f"Comment added to {provider.source}:{key}.", sources
+    )
 
 
 @main.command()
@@ -1243,7 +1246,7 @@ def assign(settings: Settings, ref, user, nobody):
         raise _fail(exc) from exc
     click.echo(ticket.ref)
     who = ticket.assignee or "nobody"
-    _done(settings, "👤", f"{ticket.ref} is now assigned to {who}.", sources)
+    _done(settings, ASSIGNEE_EMOJI, f"{ticket.ref} is now assigned to {who}.", sources)
 
 
 @main.command()
@@ -1258,7 +1261,7 @@ def move(settings: Settings, ref, status):
     except ProviderError as exc:
         raise _fail(exc) from exc
     click.echo(ticket.ref)
-    _done(settings, "➡️", f"{ticket.ref} is now {ticket.status}.", sources)
+    _done(settings, MOVED_EMOJI, f"{ticket.ref} is now {ticket.status}.", sources)
 
 
 @main.command("sources")
@@ -1287,12 +1290,12 @@ def list_sources(settings: Settings, check: bool, show_plugin_dir: bool):
         row = [name, provider.name, getattr(provider, "base_url", "")]
         if check:
             try:
-                row.append(settings.with_emoji("✅", provider.whoami()))
+                row.append(settings.with_emoji(SUCCESS_EMOJI, provider.whoami()))
             except ProviderError as exc:
                 failed = True
                 # Without the emoji, a word keeps a failure from passing as a name.
                 failure = f"{exc}" if settings.emoji else f"{_CHECK_FAILED} {exc}"
-                row.append(settings.with_emoji("❌", failure))
+                row.append(settings.with_emoji(FAILURE_EMOJI, failure))
         rows.append(row)
     if rows:
         headers = ["SOURCE", "PROVIDER", "URL"] + (["CHECK"] if check else [])
@@ -1312,9 +1315,8 @@ def list_sources(settings: Settings, check: bool, show_plugin_dir: bool):
 
 # ── Working contexts ────────────────────────────────────────────────────────
 
-#: Marks the active context in ``context list``.
-_ACTIVE_MARK = "☕"
-#: The mark with emoji off.
+#: Marks the active context in ``context list`` when emoji are off; with them
+#: on, the mark is COFFEE_EMOJI.
 _ACTIVE_MARK_PLAIN = "*"
 
 
@@ -1355,7 +1357,7 @@ def context_list(settings: Settings):
         )
         return
     active = settings.context.name if settings.context else None
-    mark = _ACTIVE_MARK if settings.emoji else _ACTIVE_MARK_PLAIN
+    mark = COFFEE_EMOJI if settings.emoji else _ACTIVE_MARK_PLAIN
     rows = [
         [mark if name == active else "", name, context.describe()]
         for name, context in settings.contexts.items()
@@ -1389,7 +1391,7 @@ def context_use(settings: Settings, name: str | None, clear: bool):
     click.echo(
         settings.theme.apply(
             settings.with_emoji(
-                "☕", f"Now working in '{name}' ({context.describe()})."
+                COFFEE_EMOJI, f"Now working in '{name}' ({context.describe()})."
             ),
             role="success",
         ),
@@ -1418,7 +1420,7 @@ def config_show(settings: Settings):
 def config_init(settings: Settings):
     """Write a default config file to the XDG config directory."""
     path = write_default_config()
-    click.echo(settings.with_emoji("✅", f"Default config written to: {path}"))
+    click.echo(settings.with_emoji(SUCCESS_EMOJI, f"Default config written to: {path}"))
 
 
 @config_group.command("update")
@@ -1496,7 +1498,8 @@ def update(settings: Settings):
     """Download and install the latest grind release over this executable."""
     click.echo(
         click.style(
-            settings.with_emoji("🔍", "Checking for a newer release..."), fg="cyan"
+            settings.with_emoji(UPDATE_CHECK_EMOJI, "Checking for a newer release..."),
+            fg="cyan",
         ),
         err=True,
     )
@@ -1509,7 +1512,7 @@ def update(settings: Settings):
     if status is UpdateStatus.UP_TO_DATE:
         click.echo(
             click.style(
-                settings.with_emoji("✅", f"Already up to date, v{current}."),
+                settings.with_emoji(SUCCESS_EMOJI, f"Already up to date, v{current}."),
                 fg="green",
             ),
             err=True,
@@ -1518,7 +1521,7 @@ def update(settings: Settings):
 
     click.echo(
         click.style(
-            settings.with_emoji("✅", f"grind has been updated to v{detail}."),
+            settings.with_emoji(SUCCESS_EMOJI, f"grind has been updated to v{detail}."),
             fg="green",
         ),
         err=True,
