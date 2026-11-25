@@ -467,17 +467,15 @@ FACT_EMOJI = {
     "Updated": "🔄",
     "URL": "🔗",
 }
+#: The emoji in front of each ``show`` section heading. Both are East Asian
+#: Width "W", like FACT_EMOJI, so the rule under a heading measures true.
+_DESCRIPTION_EMOJI = "📝"
+_COMMENTS_EMOJI = "💬"
 #: Cells a ``show`` field label is padded to, so the values line up.
 _FACT_LABEL_WIDTH = 10
 #: Palette positions for labels and values on days a seasonal palette cycles.
 _LABEL_INDEX = 0
 _VALUE_INDEX = 1
-#: What ``sources --check`` puts before a failure when emoji are off.
-_CHECK_FAILED = "error:"
-#: The emoji in front of each ``show`` section heading. Both are East Asian
-#: Width "W", like FACT_EMOJI, so the rule under a heading measures true.
-_DESCRIPTION_EMOJI = "📝"
-_COMMENTS_EMOJI = "💬"
 #: What the rule under a ``show`` section heading is drawn with.
 _RULE = "─"
 
@@ -501,6 +499,10 @@ _SECTION_LAYOUTS = {
     "gutter": _SectionLayout(heading="  ", text="  │ ", nest="  "),
     "plain": _SectionLayout(heading="", text="", nest=""),
 }
+
+
+#: What ``sources --check`` puts before a failure when emoji are off.
+_CHECK_FAILED = "error:"
 _NO_SOURCES = (
     "No sources configured, so there is nothing to grind. Run "
     f"`{BINARY_NAME} config init` and add a [sources.<name>] table."
