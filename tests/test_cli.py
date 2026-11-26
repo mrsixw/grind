@@ -442,8 +442,9 @@ def gift_state(tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_brew_flag_prints_a_recipe(quiet_updates):
-    result = _invoke("--brew", "sources")
+@pytest.mark.parametrize("flag", ["--brew", "--coffee"])
+def test_brew_flag_prints_a_recipe(quiet_updates, flag):
+    result = _invoke(flag, "sources")
     assert result.exit_code == 0
     assert "Secret Coffee Recipe" in result.output
 
@@ -469,6 +470,7 @@ def test_pastry_goes_to_stderr(quiet_updates):
 def test_easter_egg_flags_are_hidden_from_help():
     result = _invoke("--help")
     assert "--brew" not in result.output
+    assert "--coffee" not in result.output
     assert "--cake" not in result.output
     assert "--pastry" not in result.output
 

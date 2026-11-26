@@ -226,9 +226,9 @@ oss:acme/beans#7  Descale the espresso machine
   Type:     issue
 ```
 
-The `--brew`, `--cake` and `--pastry` recipes still have their emoji, since
-you asked for them. `update` never reads the config file, so for it only the
-flag works.
+The `--brew` (or `--coffee`), `--cake` and `--pastry` recipes still have
+their emoji, since you asked for them. `update` never reads the config file, so
+for it only the flag works.
 
 Config key: `emoji = true`
 
