@@ -13,7 +13,7 @@ from freezegun import freeze_time
 from wcwidth import wcswidth
 
 from grind.cli import FACT_EMOJI, main
-from grind.constants import TABLE_STYLES
+from grind.constants import DEFAULT_SECTION_STYLE, SECTION_STYLES, TABLE_STYLES
 from grind.jira import text_to_adf
 
 GH = "https://api.github.com"
@@ -515,6 +515,26 @@ def test_no_emoji_keeps_the_label_and_value_colours(
     assert "\x1b[38;5;180mopen" in status
 
 
+def test_show_section_headings_are_bold_in_the_accent_colour(
+    tmp_path, monkeypatch, requests_mock
+):
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue())
+    requests_mock.get(
+        f"{GH}/repos/acme/beans/issues/7/comments", json=SECTIONED_COMMENTS[:1]
+    )
+    result = run_in_colour(tmp_path, monkeypatch, "show", "oss:#7", "--comments")
+    assert result.exit_code == 0, result.output
+    lines = result.stdout.splitlines()
+    heading = lines.index(next(line for line in lines if "Description" in line))
+    # Bold, in the default theme's caramel accent, the rule in the same colour.
+    assert lines[heading].startswith("  \x1b[1m\x1b[38;5;173m📝 Description")
+    assert lines[heading + 1].startswith("  \x1b[38;5;173m──────────────")
+    # The comment's author line in the accent too; text is never painted.
+    assert "\n    \x1b[38;5;173mgrace · 2026-11-02" in result.stdout
+    assert "\n    It is furring up.\n" in result.stdout
+    assert "\n      Bought descaler.\n" in result.stdout
+
+
 def test_show_comments_and_json(grind, requests_mock):
     with_comment = jira_issue(
         comment={
@@ -525,10 +545,179 @@ def test_show_comments_and_json(grind, requests_mock):
     )
     requests_mock.get(f"{JIRA}/issue/PROJ-1", json=with_comment)
     text = grind("show", "work:PROJ-1", "--comments")
-    assert "💬 Grace" in text.stdout
-    assert "Ordered." in text.stdout
+    assert "  💬 Comments (1)\n" in text.stdout
+    assert "    Grace · " in text.stdout
+    assert "      Ordered." in text.stdout
     as_json = grind("show", "work:PROJ-1", "--comments", "--format", "json")
     assert json.loads(as_json.stdout)["comments"][0]["body"] == "Ordered."
+
+
+#: A description with a blank line in it, and two comments, so each layout
+#: has to show where the description ends and each comment begins.
+SECTIONED_BODY = "Slow shots all week.\n\nSteps:\n- run the descaler\n"
+SECTIONED_COMMENTS = [
+    {
+        "user": {"login": "grace"},
+        "created_at": "2026-11-02T10:00:00Z",
+        "body": "Bought descaler.",
+    },
+    {
+        "user": {"login": "ada"},
+        "created_at": "2026-11-03T10:00:00Z",
+        "body": "Done.\n\nFlushed twice.",
+    },
+]
+#: What follows the fields, for each --section-style.
+SECTIONS = {
+    "indent": """
+  📝 Description
+  ──────────────
+    Slow shots all week.
+
+    Steps:
+    - run the descaler
+
+  💬 Comments (2)
+  ───────────────
+    grace · 2026-11-02
+      Bought descaler.
+
+    ada · 2026-11-03
+      Done.
+
+      Flushed twice.
+""",
+    "gutter": """
+  📝 Description
+  ──────────────
+  │ Slow shots all week.
+  │
+  │ Steps:
+  │ - run the descaler
+
+  💬 Comments (2)
+  ───────────────
+  │ grace · 2026-11-02
+  │   Bought descaler.
+  │
+  │ ada · 2026-11-03
+  │   Done.
+  │
+  │   Flushed twice.
+""",
+    "plain": """
+📝 Description
+──────────────
+Slow shots all week.
+
+Steps:
+- run the descaler
+
+💬 Comments (2)
+───────────────
+grace · 2026-11-02
+Bought descaler.
+
+ada · 2026-11-03
+Done.
+
+Flushed twice.
+""",
+}
+
+
+def show_sectioned(grind, requests_mock, *args, config=CONFIG):
+    requests_mock.get(
+        f"{GH}/repos/acme/beans/issues/7", json=gh_issue(body=SECTIONED_BODY)
+    )
+    requests_mock.get(
+        f"{GH}/repos/acme/beans/issues/7/comments", json=SECTIONED_COMMENTS
+    )
+    return grind(*args, "show", "oss:#7", "--comments", config=config)
+
+
+def test_every_section_style_has_a_layout():
+    assert set(SECTIONS) == set(SECTION_STYLES)
+
+
+@pytest.mark.parametrize("style", SECTION_STYLES)
+def test_show_heads_the_description_and_comments_in_each_section_style(
+    grind, requests_mock, style
+):
+    result = show_sectioned(grind, requests_mock, "--section-style", style)
+    assert result.exit_code == 0, result.output
+    # Everything after the last field, which is the URL.
+    after_fields = result.stdout.split("issues/7\n", 1)[1]
+    assert after_fields == SECTIONS[style]
+
+
+def test_show_indents_its_sections_by_default(grind, requests_mock):
+    assert DEFAULT_SECTION_STYLE == "indent"
+    result = show_sectioned(grind, requests_mock)
+    assert result.stdout.endswith(SECTIONS["indent"])
+
+
+@pytest.mark.parametrize("style", SECTION_STYLES)
+def test_show_keeps_tab_stops_and_drops_blank_lines_at_the_ends(
+    grind, requests_mock, style
+):
+    body = "\n\n  code first\nid\t42\nstatus\topen\n\n"
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(body=body))
+    result = grind("--section-style", style, "show", "oss:#7")
+    lines = result.stdout.splitlines()
+    rule = lines.index(next(line for line in lines if "Description" in line)) + 1
+    # The first line under the rule is the text, its own indent kept.
+    assert lines[rule + 1].endswith("  code first")
+    # Tabs are expanded, so the two values still line up.
+    assert lines[rule + 2].index("42") == lines[rule + 3].index("open")
+    assert "\t" not in result.stdout
+    assert result.stdout.endswith("open\n")
+
+
+def test_the_section_style_can_be_set_in_config(grind, requests_mock):
+    result = show_sectioned(
+        grind, requests_mock, config='section-style = "gutter"\n' + CONFIG
+    )
+    assert result.stdout.endswith(SECTIONS["gutter"])
+
+
+def test_the_section_style_flag_beats_the_config(grind, requests_mock):
+    result = show_sectioned(
+        grind,
+        requests_mock,
+        "--section-style",
+        "plain",
+        config='section-style = "gutter"\n' + CONFIG,
+    )
+    assert result.stdout.endswith(SECTIONS["plain"])
+
+
+def test_an_unknown_section_style_in_config_lists_the_choices(grind):
+    result = grind("list", config='section-style = "boxed"\n' + CONFIG)
+    assert result.exit_code == 1
+    assert "Invalid section-style 'boxed'" in result.stderr
+    assert ", ".join(SECTION_STYLES) in result.stderr
+
+
+def test_without_emoji_the_section_headings_keep_their_words(grind, requests_mock):
+    result = show_sectioned(grind, requests_mock, "--no-emoji")
+    lines = result.stdout.splitlines()
+    for heading in ("Description", "Comments (2)"):
+        # The rule still matches the heading it sits under.
+        assert lines[lines.index(f"  {heading}") + 1] == "  " + "─" * len(heading)
+
+
+@pytest.mark.parametrize("body", ["", " \n\n  "], ids=["empty", "whitespace"])
+def test_a_ticket_without_a_description_or_comments_has_no_empty_sections(
+    grind, requests_mock, body
+):
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(body=body))
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7/comments", json=[])
+    result = grind("show", "oss:#7", "--comments")
+    assert result.exit_code == 0, result.output
+    assert "Description" not in result.stdout
+    assert "Comments" not in result.stdout
+    assert result.stdout.endswith("issues/7\n")
 
 
 def test_show_ambiguous_ref_asks_for_a_source(grind, requests_mock):

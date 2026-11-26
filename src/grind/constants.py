@@ -17,6 +17,7 @@ __all__ = [
     "CHRISTMAS",
     "COFFEE_RECIPES",
     "DEFAULT_CACHE_TTL",
+    "DEFAULT_SECTION_STYLE",
     "DEFAULT_TABLE_STYLE",
     "DIWALI",
     "EID_AL_ADHA",
@@ -35,6 +36,7 @@ __all__ = [
     "RELEASE_ASSET_URL",
     "ROSH_HASHANAH",
     "SEASONAL_PALETTES",
+    "SECTION_STYLES",
     "SUKKOT_START",
     "TABLE_STYLES",
     "TTL_SUFFIX_MAP",
@@ -85,6 +87,13 @@ TTL_SUFFIX_MAP = {"s": 1, "m": 60, "h": 3600}
 TABLE_STYLES = ("outline", "rounded_outline", "grid", "simple", "github", "plain")
 #: breakfast's style, so the sibling apps look alike out of the box.
 DEFAULT_TABLE_STYLE = "outline"
+
+# ── show ───────────────────────────────────────────────────────────────────
+
+#: How ``--section-style`` lays out the text under each of ``show``'s section
+#: headings: indented, marked down its left edge with a bar, or flush left.
+SECTION_STYLES = ("indent", "gutter", "plain")
+DEFAULT_SECTION_STYLE = "indent"
 
 # ── UI & theming ───────────────────────────────────────────────────────────
 

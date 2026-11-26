@@ -18,10 +18,11 @@ import random
 import shutil
 import sys
 import time
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from enum import StrEnum, auto
 
 import click
+from wcwidth import wcswidth
 
 # Imported for their side effect: each registers a built-in provider.
 from . import github, jira  # noqa: F401
@@ -32,8 +33,10 @@ from .constants import (
     APP_NAME,
     BINARY_NAME,
     DEFAULT_CACHE_TTL,
+    DEFAULT_SECTION_STYLE,
     DEFAULT_TABLE_STYLE,
     ENVVAR_PREFIX,
+    SECTION_STYLES,
     TABLE_STYLES,
 )
 from .logger import configure as configure_logging
@@ -137,6 +140,13 @@ def resolve_option(flag_value, cfg: dict, key: str, default):
     help=f"How tables are drawn. Default: {DEFAULT_TABLE_STYLE}.",
 )
 @click.option(
+    "--section-style",
+    type=click.Choice(SECTION_STYLES),
+    default=None,
+    help="How show lays out the description and comments under their headings. "
+    f"Default: {DEFAULT_SECTION_STYLE}.",
+)
+@click.option(
     "--emoji/--no-emoji",
     default=None,
     help="Print emoji in show, progress and messages (on by default).",
@@ -228,6 +238,7 @@ def main(
     seasonal_colours,
     seasonal_calendar,
     table_style,
+    section_style,
     emoji,
     progress,
     no_colour,
@@ -271,8 +282,15 @@ def main(
     try:
         cfg = load_config(config_path)
         ttl = parse_ttl(resolve_option(cache_ttl, cfg, "cache-ttl", DEFAULT_CACHE_TTL))
-        style = _table_style(
-            resolve_option(table_style, cfg, "table-style", DEFAULT_TABLE_STYLE)
+        style = _config_choice(
+            "table-style",
+            resolve_option(table_style, cfg, "table-style", DEFAULT_TABLE_STYLE),
+            TABLE_STYLES,
+        )
+        layout = _config_choice(
+            "section-style",
+            resolve_option(section_style, cfg, "section-style", DEFAULT_SECTION_STYLE),
+            SECTION_STYLES,
         )
     except ValueError as exc:
         raise click.ClickException(str(exc)) from exc
@@ -291,6 +309,7 @@ def main(
         ),
         colour=not (no_colour or cfg.get("no-colour", False)),
         table_style=style,
+        section_style=layout,
         emoji=resolve_option(emoji, cfg, "emoji", True),
         progress=resolve_option(progress, cfg, "progress", True),
         cache_enabled=resolve_option(cache_enabled, cfg, "cache", False),
@@ -308,16 +327,15 @@ def main(
         ctx.invoke(list_tickets)
 
 
-def _table_style(name: str) -> str:
-    """Validate a table style that may have come from the config file.
+def _config_choice(key: str, name: str, choices: tuple[str, ...]) -> str:
+    """Validate a choice that may have come from the config file.
 
     The flag is checked by its ``click.Choice``; the config value is not, and
-    a typo there must fail with the choices rather than a tabulate traceback.
+    a typo there must fail with the choices rather than a traceback later.
     """
-    if name not in TABLE_STYLES:
+    if name not in choices:
         raise ValueError(
-            f"Invalid table-style '{name}' in config. "
-            f"Choose from: {', '.join(TABLE_STYLES)}."
+            f"Invalid {key} '{name}' in config. Choose from: {', '.join(choices)}."
         )
     return name
 
@@ -451,11 +469,40 @@ FACT_EMOJI = {
     "Updated": "🔄",
     "URL": "🔗",
 }
+#: The emoji in front of each ``show`` section heading. Both are East Asian
+#: Width "W", like FACT_EMOJI, so the rule under a heading measures true.
+_DESCRIPTION_EMOJI = "📝"
+_COMMENTS_EMOJI = "💬"
 #: Cells a ``show`` field label is padded to, so the values line up.
 _FACT_LABEL_WIDTH = 10
 #: Palette positions for labels and values on days a seasonal palette cycles.
 _LABEL_INDEX = 0
 _VALUE_INDEX = 1
+#: What the rule under a ``show`` section heading is drawn with.
+_RULE = "─"
+
+
+@dataclass(frozen=True)
+class _SectionLayout:
+    """Where one ``--section-style`` puts a ``show`` section's lines."""
+
+    #: In front of the heading and its rule.
+    heading: str
+    #: In front of every line of the section's text, blank ones included.
+    text: str
+    #: Added to ``text`` for a comment's own lines, under its author line.
+    nest: str
+
+
+#: Indent and gutter line their headings up with the fields above; plain
+#: keeps everything flush left.
+_SECTION_LAYOUTS = {
+    "indent": _SectionLayout(heading="  ", text="    ", nest="  "),
+    "gutter": _SectionLayout(heading="  ", text="  │ ", nest="  "),
+    "plain": _SectionLayout(heading="", text="", nest=""),
+}
+
+
 #: What ``sources --check`` puts before a failure when emoji are off.
 _CHECK_FAILED = "error:"
 _NO_SOURCES = (
@@ -585,14 +632,48 @@ def _render_ticket(settings: Settings, ticket: Ticket) -> str:
     lines += [
         _render_fact(settings, label, value) for label, value in facts.items() if value
     ]
-    if ticket.body:
-        lines += ["", ticket.body.rstrip()]
-    for comment in ticket.comments:
-        heading = settings.with_emoji(
-            "💬", f"{comment.author} · {_short_date(comment.created)}"
-        )
-        lines += ["", settings.paint(heading, role="accent"), comment.body.rstrip()]
+    layout = _SECTION_LAYOUTS[settings.section_style]
+    # A description of only whitespace has nothing to put under a heading.
+    if ticket.body.strip():
+        lines += _render_heading(settings, layout, _DESCRIPTION_EMOJI, "Description")
+        lines += _render_block(layout.text, ticket.body)
+    if ticket.comments:
+        title = f"Comments ({len(ticket.comments)})"
+        lines += _render_heading(settings, layout, _COMMENTS_EMOJI, title)
+        for number, comment in enumerate(ticket.comments):
+            if number:
+                lines.append(layout.text.rstrip())
+            byline = f"{comment.author} · {_short_date(comment.created)}"
+            lines.append(layout.text + settings.paint(byline, role="accent"))
+            lines += _render_block(layout.text + layout.nest, comment.body)
     return "\n".join(lines)
+
+
+def _render_heading(
+    settings: Settings, layout: _SectionLayout, emoji: str, title: str
+) -> list[str]:
+    """A ``show`` section heading with a rule under it, after a blank line."""
+    heading = settings.with_emoji(emoji, title)
+    rule = _RULE * wcswidth(heading)
+    if settings.colour:
+        heading = click.style(settings.paint(heading, role="accent"), bold=True)
+        rule = settings.paint(rule, role="accent")
+    return ["", f"{layout.heading}{heading}", f"{layout.heading}{rule}"]
+
+
+def _render_block(prefix: str, text: str) -> list[str]:
+    """*text* with *prefix* on every line, its blank lines included.
+
+    A blank line keeps the prefix too (less any trailing space), so in the
+    gutter style the bar runs unbroken from the first line to the last. Blank
+    lines at either end are dropped, so none opens a gap under a heading; an
+    indented first line keeps its indent. Tabs are expanded first, since the
+    prefix would otherwise move the text off the terminal's tab stops.
+    """
+    lines = text.expandtabs().rstrip().splitlines()
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    return [f"{prefix}{line}".rstrip() for line in lines]
 
 
 def _emit_ticket(settings: Settings, ticket: Ticket, output_format: str) -> None:
