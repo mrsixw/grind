@@ -127,6 +127,13 @@ template, writing a timestamped backup first. Useful after upgrading to a
 release that introduces new config keys. They go in above your first
 `[sources.<name>]` table, so each one still works once you uncomment it.
 
+Earlier versions added them at the end of the file instead, below your
+sources, where TOML reads every option as part of the last source and grind
+ignores it. `config update` moves any such block, marked
+`# --- Added by config update`, back above the first table. It leaves a block
+alone if it also holds a key only a source takes, since that was meant for the
+source.
+
 ### `completions [bash|zsh|fish]`
 
 Print the shell completion script. Eval in your shell config:

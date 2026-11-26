@@ -13,7 +13,12 @@ from freezegun import freeze_time
 from wcwidth import wcswidth
 
 from grind.cli import FACT_EMOJI, main
-from grind.constants import DEFAULT_SECTION_STYLE, SECTION_STYLES, TABLE_STYLES
+from grind.constants import (
+    BINARY_NAME,
+    DEFAULT_SECTION_STYLE,
+    SECTION_STYLES,
+    TABLE_STYLES,
+)
 from grind.jira import text_to_adf
 
 GH = "https://api.github.com"
@@ -710,7 +715,23 @@ def test_a_setting_below_the_sources_is_named_not_silently_ignored(
     assert "'section-style' is inside [sources.work], so it has no effect" in (
         result.stderr
     )
+    assert f"`{BINARY_NAME} config update`" in result.stderr
     assert result.stdout.endswith(SECTIONS["indent"])
+
+
+def test_config_update_moves_what_an_old_update_misplaced_without_a_warning(grind):
+    old_block = "# --- Added by config update (grind v0.5.0) on 2026-11-26 ---\n"
+    config = f'{CONFIG}\n{old_block}section-style = "gutter"\n'
+    result = grind("config", "update", config=config)
+    assert result.exit_code == 0, result.output
+    assert "Moved 1 block(s)" in result.stderr
+    assert "has no effect" not in result.stderr
+
+
+def test_config_update_names_what_it_could_not_move(grind):
+    result = grind("config", "update", config=CONFIG + 'section-style = "gutter"\n')
+    assert result.exit_code == 0, result.output
+    assert "'section-style' is still inside [sources.work]" in result.stderr
 
 
 def test_a_setting_above_the_sources_draws_no_warning(grind, requests_mock):

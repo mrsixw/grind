@@ -326,7 +326,9 @@ def main(
         pastry=pastry,
         started_at=started_at,
     )
-    _warn_misplaced_settings(ctx.obj)
+    # config update moves them, so warning about them there is only noise.
+    if ctx.invoked_subcommand != "config":
+        _warn_misplaced_settings(ctx.obj)
 
     if ctx.invoked_subcommand is None:
         ctx.invoke(list_tickets)
@@ -342,7 +344,8 @@ def _warn_misplaced_settings(settings: Settings) -> None:
     for source, key in misplaced_settings(settings.cfg):
         message = (
             f"'{key}' is inside [sources.{source}], so it has no effect. "
-            "Move it above the first [sources.<name>] table."
+            "Move it above the first [sources.<name>] table, or run "
+            f"`{BINARY_NAME} config update` if an earlier update put it there."
         )
         click.echo(
             settings.theme.apply(settings.with_emoji("⚠️", message), role="warn"),

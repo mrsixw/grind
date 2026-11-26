@@ -178,6 +178,19 @@ def load_config(config_path: str | None = None) -> dict:
 #: A TOML table header, such as ``[sources.oss]``. Everything after the first
 #: one belongs to a table, so top-level options must be added above it.
 _TABLE_HEADER = re.compile(r"^\s*\[")
+#: A commented-out table header, such as the template's ``# [sources.work]``.
+_COMMENTED_TABLE = re.compile(r"^\s*#\s*\[")
+#: A commented-out option, as the template writes one: ``# emoji = true``.
+_COMMENTED_OPTION = re.compile(r"^# [a-z][a-z0-9-]+ =")
+#: A section heading in the template, such as ``# ----- Display -----``.
+_SECTION_HEADING = re.compile(r"^# -{5}")
+#: The line ``config update`` writes above the options it adds.
+_ADDED_SEPARATOR = re.compile(r"^# --- Added by config update \(")
+
+
+def _template_options() -> set[str]:
+    """Every top-level option the template offers."""
+    return {key for key, _block in _extract_option_blocks(_DEFAULT_CONFIG_CONTENT)}
 
 
 def misplaced_settings(cfg: dict) -> list[tuple[str, str]]:
@@ -188,7 +201,7 @@ def misplaced_settings(cfg: dict) -> list[tuple[str, str]]:
     added at the bottom of the file is a setting of the last source, which
     ignores it.
     """
-    options = {key for key, _block in _extract_option_blocks(_DEFAULT_CONFIG_CONTENT)}
+    options = _template_options()
     sources = cfg.get("sources", {})
     if not isinstance(sources, dict):
         return []
@@ -201,21 +214,165 @@ def misplaced_settings(cfg: dict) -> list[tuple[str, str]]:
     ]
 
 
+def _first_table(lines: list[str]) -> int | None:
+    return next((i for i, line in enumerate(lines) if _TABLE_HEADER.match(line)), None)
+
+
+def _table_comment(line: str) -> bool:
+    """Whether *line* could be a comment about the table below it.
+
+    A commented-out option, or the line an update writes, is not: it belongs
+    with the option block above.
+    """
+    return (
+        line.lstrip().startswith("#")
+        and not _COMMENTED_OPTION.match(line)
+        and not _ADDED_SEPARATOR.match(line)
+    )
+
+
 def _insert_before_tables(content: str, addition: str) -> str:
     """*content* with *addition* placed above its first table.
 
-    The comment lines straight above that table stay with it. With no table,
-    *addition* goes at the end.
+    The comment lines straight above that table stay with it. So does the
+    nearest section heading above those, such as ``# ----- Source definitions
+    -----``, when only comments and blank lines come between: the options go
+    above it, not under a heading that is about the tables. A commented-out
+    option on the way up means the heading belongs to that option's section,
+    so the options stay below it. With no table, *addition* goes at the end.
     """
     lines = content.splitlines(keepends=True)
-    first = next((i for i, line in enumerate(lines) if _TABLE_HEADER.match(line)), None)
+    first = _first_table(lines)
     if first is None:
         if content and not content.endswith("\n"):
             content += "\n"
         return f"{content}\n{addition}"
-    while first and lines[first - 1].lstrip().startswith("#"):
-        first -= 1
-    return "".join(lines[:first]) + f"{addition}\n" + "".join(lines[first:])
+    at = first
+    while at and _table_comment(lines[at - 1]):
+        at -= 1
+    above = first
+    while above:
+        line = lines[above - 1]
+        if line.strip() and not line.lstrip().startswith("#"):
+            break
+        if _COMMENTED_OPTION.match(line) or _ADDED_SEPARATOR.match(line):
+            break
+        above -= 1
+        if _SECTION_HEADING.match(line):
+            at = above
+            break
+    return "".join(lines[:at]) + f"{addition}\n" + "".join(lines[at:])
+
+
+def _flatten(table: dict, path: tuple[str, ...] = ()) -> dict[tuple[str, ...], object]:
+    """Every value in a parsed config, keyed by its path of table names."""
+    flat: dict[tuple[str, ...], object] = {}
+    for key, value in table.items():
+        if isinstance(value, dict):
+            flat |= _flatten(value, (*path, key))
+        else:
+            flat[(*path, key)] = value
+    return flat
+
+
+def _span_end(lines: list[str], start: int) -> int:
+    """Where the block an update wrote at *start* ends.
+
+    It runs to the next update's block, table or commented-out table. The
+    comments straight above a table, and the blank lines at the end, are left
+    out: they belong to what comes next.
+    """
+    end = start + 1
+    while end < len(lines) and not (
+        _ADDED_SEPARATOR.match(lines[end])
+        or _TABLE_HEADER.match(lines[end])
+        or _COMMENTED_TABLE.match(lines[end])
+    ):
+        end += 1
+    if end < len(lines) and not _ADDED_SEPARATOR.match(lines[end]):
+        while end > start + 1 and _table_comment(lines[end - 1]):
+            end -= 1
+    while end > start + 1 and not lines[end - 1].strip():
+        end -= 1
+    return end
+
+
+def _rescue_added_blocks(content: str) -> tuple[str, dict[str, object], int]:
+    """Move blocks an earlier ``config update`` put below a table above it.
+
+    Earlier versions put the blocks at the end of the file, after the
+    ``[sources.<name>]`` tables, so each option in them became a setting of
+    the last source. Returns the new content, the options moved and how many
+    blocks were moved. A block whose options are all still commented out
+    moves too, with nothing set, so uncommenting one later works.
+
+    Each block is parsed on its own, and moved only when everything in it is a
+    plain top-level option that is not already set elsewhere: anything else
+    was meant for the source, or would clash. The result is parsed again, and
+    unless the moved options are the only change, nothing is moved at all.
+    A file that is not valid TOML is left alone.
+    """
+    try:
+        before = tomllib.loads(content)
+    except tomllib.TOMLDecodeError:
+        return content, {}, 0
+    lines = content.splitlines(keepends=True)
+    first = _first_table(lines)
+    if first is None:
+        return content, {}, 0
+    options = _template_options()
+    claimed = set(before)
+    moved: dict[str, object] = {}
+    spans: list[tuple[int, int]] = []
+    start = first + 1
+    while start < len(lines):
+        if not _ADDED_SEPARATOR.match(lines[start]):
+            start += 1
+            continue
+        end = _span_end(lines, start)
+        try:
+            block = tomllib.loads("".join(lines[start:end]))
+        except tomllib.TOMLDecodeError:
+            block = None
+        if block is not None and all(
+            key in options and key not in claimed and not isinstance(value, dict)
+            for key, value in block.items()
+        ):
+            spans.append((start, end))
+            claimed |= set(block)
+            moved |= block
+        start = end
+    if not spans:
+        return content, {}, 0
+
+    text = "\n".join("".join(lines[a:b]).rstrip() + "\n" for a, b in spans)
+    kept = list(lines)
+    for a, b in reversed(spans):
+        # Take the blank lines in front of a block with it, so none pile up.
+        while a > first + 1 and not kept[a - 1].strip():
+            a -= 1
+        del kept[a:b]
+    result = _insert_before_tables("".join(kept).rstrip() + "\n", text)
+
+    try:
+        after = tomllib.loads(result)
+    except tomllib.TOMLDecodeError:
+        return content, {}, 0
+    flat_before, flat_after = _flatten(before), _flatten(after)
+    gone = {path for path in flat_before if path not in flat_after}
+    new = {path for path in flat_after if path not in flat_before}
+    unchanged = all(
+        flat_after[path] == flat_before[path] for path in flat_before.keys() - gone
+    )
+    if (
+        not unchanged
+        or new != {(key,) for key in moved}
+        or len(gone) != len(moved)
+        or any(path[-1] not in moved for path in gone)
+        or any(after[key] != value for key, value in moved.items())
+    ):
+        return content, {}, 0
+    return result, moved, len(spans)
 
 
 def write_default_config() -> Path:
@@ -287,6 +444,9 @@ def _key_present_in_file(key: str, content: str) -> bool:
 def update_config(config_path: str | None = None, *, emoji: bool = True) -> bool:
     """Add any missing options to the existing config file, above its tables.
 
+    Blocks an earlier update left below a table, where they had no effect, are
+    moved up there too.
+
     Resolves the config file using the same priority order as load_config().
     Creates a timestamped backup before making any changes. Returns True on
     success (including when already up to date) and False on error.
@@ -317,21 +477,49 @@ def update_config(config_path: str | None = None, *, emoji: bool = True) -> bool
         click.echo(click.style(f"Error reading config: {exc}", fg="red"), err=True)
         return False
 
+    rescued, moved, blocks = _rescue_added_blocks(existing_content)
     option_blocks = _extract_option_blocks(_DEFAULT_CONFIG_CONTENT)
     missing = [
         (key, block)
         for key, block in option_blocks
-        if not _key_present_in_file(key, existing_content)
+        if not _key_present_in_file(key, rescued)
     ]
 
-    if not missing:
+    if not missing and rescued == existing_content:
         click.echo(
             click.style(
                 with_emoji("✅", "Config is already up to date.", emoji), fg="green"
             ),
             err=True,
         )
+        _report_misplaced(rescued, emoji=emoji)
         return True
+
+    try:
+        _version = pkg_version(APP_NAME)
+    except PackageNotFoundError:
+        _version = "unknown"
+
+    readable_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    separator = f"# --- Added by config update (grind v{_version}) on {readable_ts} ---"
+
+    new_content = rescued
+    if missing:
+        # Above the first table: a key added after [sources.<name>] would
+        # belong to that source, and have no effect when uncommented.
+        addition = f"{separator}\n" + "".join(f"\n{block}\n" for _key, block in missing)
+        new_content = _insert_before_tables(rescued, addition)
+    # Checked before the backup, so a refusal leaves nothing behind.
+    if _parses(existing_content) and not _parses(new_content):
+        click.echo(
+            click.style(
+                "Error: the updated config would not be valid TOML, so it was "
+                "left as it was.",
+                fg="red",
+            ),
+            err=True,
+        )
+        return False
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     backup_path = existing_path.parent / (existing_path.name + f".bak.{timestamp}")
@@ -346,32 +534,62 @@ def update_config(config_path: str | None = None, *, emoji: bool = True) -> bool
     click.echo(with_emoji("💾", f"Backup saved to {backup_path}", emoji), err=True)
 
     try:
-        _version = pkg_version(APP_NAME)
-    except PackageNotFoundError:
-        _version = "unknown"
-
-    readable_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    separator = f"# --- Added by config update (grind v{_version}) on {readable_ts} ---"
-
-    # Above the first table: a key added after [sources.<name>] would belong
-    # to that source, and have no effect when uncommented.
-    addition = f"{separator}\n" + "".join(f"\n{block}\n" for _key, block in missing)
-    new_content = _insert_before_tables(existing_content, addition)
-
-    try:
         atomic_write_text(existing_path, new_content)
     except OSError as exc:
         click.echo(click.style(f"Error writing config: {exc}", fg="red"), err=True)
         return False
 
-    click.echo(
-        click.style(
-            with_emoji("✅", f"Added {len(missing)} missing option(s):", emoji),
-            fg="green",
-        ),
-        err=True,
-    )
-    for key, _ in missing:
-        click.echo(f"   {key}", err=True)
+    if blocks:
+        click.echo(
+            click.style(
+                with_emoji(
+                    "✅",
+                    f"Moved {blocks} block(s) an earlier update left below your "
+                    "first table up above it, where their options take effect.",
+                    emoji,
+                ),
+                fg="green",
+            ),
+            err=True,
+        )
+        if moved:
+            click.echo(f"   Now in effect: {', '.join(moved)}", err=True)
+    if missing:
+        click.echo(
+            click.style(
+                with_emoji("✅", f"Added {len(missing)} missing option(s):", emoji),
+                fg="green",
+            ),
+            err=True,
+        )
+        for key, _ in missing:
+            click.echo(f"   {key}", err=True)
+    _report_misplaced(new_content, emoji=emoji)
 
     return True
+
+
+def _parses(content: str) -> bool:
+    try:
+        tomllib.loads(content)
+    except tomllib.TOMLDecodeError:
+        return False
+    return True
+
+
+def _report_misplaced(content: str, *, emoji: bool) -> None:
+    """Name each option still inside a source's table, which update cannot move.
+
+    Only blocks an update wrote are moved, and only when that is safe. One the
+    user wrote below a table, or one that would clash, is left for them.
+    """
+    try:
+        cfg = tomllib.loads(content)
+    except tomllib.TOMLDecodeError:
+        return
+    for source, key in misplaced_settings(cfg):
+        message = (
+            f"'{key}' is still inside [sources.{source}], where it has no "
+            "effect. Move it above the first [sources.<name>] table by hand."
+        )
+        click.echo(click.style(with_emoji("⚠️", message, emoji), fg="yellow"), err=True)
