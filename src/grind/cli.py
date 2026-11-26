@@ -199,6 +199,8 @@ def resolve_option(flag_value, cfg: dict, key: str, default):
 # ── Easter eggs ─────────────────────────────────────────────────────────────
 @click.option(
     "--brew",
+    "--coffee",
+    "brew",
     is_flag=True,
     default=False,
     hidden=True,
