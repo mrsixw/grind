@@ -51,6 +51,7 @@ __all__ = [
     "LABEL_PALETTE_INDEX",
     "LOG_FILENAME",
     "MID_AUTUMN",
+    "MIN_TEXT_WIDTH",
     "MOVED_EMOJI",
     "NO_SOURCES_MESSAGE",
     "OUTPUT_FORMATS",
@@ -151,6 +152,9 @@ LABEL_PALETTE_INDEX = 0
 VALUE_PALETTE_INDEX = 1
 #: What the rule under a ``show`` section heading is drawn with.
 SECTION_RULE = "─"
+#: The narrowest the text under a ``show`` heading is wrapped to, so a tiny
+#: window still gets whole words on each line rather than a letter or two.
+MIN_TEXT_WIDTH = 20
 
 
 class SectionLayout(NamedTuple):

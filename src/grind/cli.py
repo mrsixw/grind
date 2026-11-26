@@ -56,6 +56,7 @@ from .constants import (
     FACT_LABEL_WIDTH,
     FAILURE_EMOJI,
     LABEL_PALETTE_INDEX,
+    MIN_TEXT_WIDTH,
     MOVED_EMOJI,
     NO_SOURCES_MESSAGE,
     OUTPUT_FORMATS,
@@ -404,8 +405,9 @@ def _warn_misplaced_settings(settings: Settings) -> None:
             "Move it above the first [sources.<name>] table, or run "
             f"`{BINARY_NAME} config update` if an earlier update put it there."
         )
+        warning = settings.with_emoji(WARNING_EMOJI, message)
         click.echo(
-            settings.theme.apply(settings.with_emoji("⚠️", message), role="warn"),
+            settings.theme.apply(warning, role="warn"),
             err=True,
             color=settings.colour,
         )
@@ -573,10 +575,6 @@ def finish_run(
 
 
 # ── Tickets ─────────────────────────────────────────────────────────────────
-
-#: The narrowest the text under a ``show`` heading is wrapped to, so a tiny
-#: window still gets whole words on each line rather than a letter or two.
-_MIN_TEXT_WIDTH = 20
 
 
 def _fail(exc: ProviderError) -> click.ClickException:
@@ -795,7 +793,7 @@ def _render_block(prefix: str, text: str, columns: int) -> list[str]:
         lines.pop(0)
     if not prefix:
         return lines
-    width = max(columns - _cells(prefix), _MIN_TEXT_WIDTH)
+    width = max(columns - _cells(prefix), MIN_TEXT_WIDTH)
     return [
         f"{prefix}{piece}".rstrip() for line in lines for piece in _wrap(line, width)
     ]
