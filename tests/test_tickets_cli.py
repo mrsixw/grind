@@ -699,6 +699,112 @@ def test_an_unknown_section_style_in_config_lists_the_choices(grind):
     assert ", ".join(SECTION_STYLES) in result.stderr
 
 
+def test_a_setting_below_the_sources_is_named_not_silently_ignored(
+    grind, requests_mock
+):
+    # TOML reads a key after [sources.work] as part of that table.
+    result = show_sectioned(
+        grind, requests_mock, config=CONFIG + 'section-style = "gutter"\n'
+    )
+    assert result.exit_code == 0, result.output
+    assert "'section-style' is inside [sources.work], so it has no effect" in (
+        result.stderr
+    )
+    assert result.stdout.endswith(SECTIONS["indent"])
+
+
+def test_a_setting_above_the_sources_draws_no_warning(grind, requests_mock):
+    result = show_sectioned(
+        grind, requests_mock, config='section-style = "gutter"\n' + CONFIG
+    )
+    assert result.exit_code == 0, result.output
+    assert "has no effect" not in result.stderr
+    assert result.stdout.endswith(SECTIONS["gutter"])
+
+
+#: Columns in the narrow terminal the wrapping tests run in.
+NARROW_TERMINAL = 40
+#: A word longer than a narrow terminal is wide.
+LONG_URL = "https://example.com/" + "a" * NARROW_TERMINAL
+
+
+@pytest.mark.parametrize("style", ["indent", "gutter"])
+def test_long_lines_wrap_inside_the_section_so_the_prefix_stays(
+    grind, requests_mock, monkeypatch, style
+):
+    monkeypatch.setenv("COLUMNS", str(NARROW_TERMINAL))
+    body = "Slow shots all week, and the grinder is clogged again. " * 2
+    item = f"  - see {LONG_URL} for the descaling steps we always forget"
+    body += f"\n{item}"
+    comments = [{**SECTIONED_COMMENTS[0], "body": body}]
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(body=body))
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7/comments", json=comments)
+    result = grind("--section-style", style, "show", "oss:#7", "--comments")
+    assert result.exit_code == 0, result.output
+    layout = SECTIONS[style].splitlines()
+    prefix = next(line for line in layout if "Slow shots" in line).split("Slow")[0]
+    description = result.stdout.split("──\n", 1)[1].split("\n\n", 1)[0]
+    lines = description.splitlines()
+    assert len(lines) > 2
+    # Every line, wrapped or not, keeps the prefix and fits the terminal.
+    assert all(line.startswith(prefix) for line in lines)
+    assert all(wcswidth(line) <= NARROW_TERMINAL for line in lines)
+    # Nothing is lost: the words and the cut URL.
+    text = " ".join(line[len(prefix) :].strip() for line in lines)
+    assert text.replace(" ", "") == body.replace("\n", "").replace(" ", "")
+    # The list item wraps under its own indent, not the section's edge.
+    start = next(i for i, line in enumerate(lines) if "- see" in line)
+    assert lines[start] == f"{prefix}  - see"
+    assert all(line.startswith(prefix + "  ") for line in lines[start:])
+    # The comment's text, nested deeper, wraps under its own prefix too.
+    comment = result.stdout.split("Comments (1)", 1)[1].splitlines()[3:]
+    assert all(line.startswith(prefix + "  ") for line in comment if line)
+    assert all(wcswidth(line) <= NARROW_TERMINAL for line in comment)
+
+
+def test_lines_that_fit_are_left_as_they_were(grind, requests_mock, monkeypatch):
+    monkeypatch.setenv("COLUMNS", str(NARROW_TERMINAL))
+    # Trailing spaces and a blank line of tabs are both wider than the room.
+    padding = " " * NARROW_TERMINAL
+    body = f"id    42{padding}\n" + "\t" * NARROW_TERMINAL + "\nshort  line"
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(body=body))
+    result = grind("--section-style", "gutter", "show", "oss:#7")
+    assert result.stdout.endswith("  │ id    42\n  │\n  │ short  line\n")
+
+
+def test_a_deep_indent_gives_its_room_back_to_the_words(
+    grind, requests_mock, monkeypatch
+):
+    monkeypatch.setenv("COLUMNS", str(NARROW_TERMINAL))
+    words = " ".join(["descale"] * NARROW_TERMINAL)
+    body = " " * NARROW_TERMINAL + words
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(body=body))
+    result = grind("--section-style", "gutter", "show", "oss:#7")
+    lines = result.stdout.split("──\n", 1)[1].splitlines()
+    assert all(line.startswith("  │ descale") for line in lines)
+    assert all(wcswidth(line) <= NARROW_TERMINAL for line in lines)
+
+
+def test_plain_leaves_wrapping_to_the_terminal(grind, requests_mock, monkeypatch):
+    monkeypatch.setenv("COLUMNS", str(NARROW_TERMINAL))
+    body = f"see {LONG_URL} for steps"
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(body=body))
+    result = grind("--section-style", "plain", "show", "oss:#7")
+    assert result.stdout.endswith(f"\n{body}\n")
+
+
+def test_an_emoji_is_measured_as_the_terminal_draws_it(
+    grind, requests_mock, monkeypatch
+):
+    monkeypatch.setenv("COLUMNS", str(NARROW_TERMINAL))
+    body = " ".join(["⚠️ hot"] * NARROW_TERMINAL)
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(body=body))
+    result = grind("--section-style", "gutter", "show", "oss:#7")
+    lines = result.stdout.split("──\n", 1)[1].splitlines()
+    assert len(lines) > 1
+    assert all(wcswidth(line) <= NARROW_TERMINAL for line in lines)
+
+
 def test_without_emoji_the_section_headings_keep_their_words(grind, requests_mock):
     result = show_sectioned(grind, requests_mock, "--no-emoji")
     lines = result.stdout.splitlines()

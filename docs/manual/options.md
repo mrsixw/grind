@@ -124,7 +124,8 @@ Write a default config file to `~/.config/grind/config.toml`.
 
 Merge any options missing from your existing config file in from the
 template, writing a timestamped backup first. Useful after upgrading to a
-release that introduces new config keys.
+release that introduces new config keys. They go in above your first
+`[sources.<name>]` table, so each one still works once you uncomment it.
 
 ### `completions [bash|zsh|fish]`
 
@@ -247,11 +248,18 @@ Every style keeps the headings.
   │ - run the descaler
 ```
 
+In `indent` and `gutter`, a line too long for the terminal is wrapped at a
+space, and the wrapped part keeps the indent or bar. A word wider than the
+terminal, such as a long URL, is cut. `plain` leaves wrapping to the terminal,
+so a long URL stays whole.
+
 ```bash
 grind --section-style gutter show oss:#7
 ```
 
-Config key: `section-style = "indent"`
+Config key: `section-style = "indent"`. Like every setting, it goes above the
+first `[sources.<name>]` table: below one, TOML reads it as part of that
+source, and grind warns that it has no effect.
 
 ### `--emoji` / `--no-emoji`
 

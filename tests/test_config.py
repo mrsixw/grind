@@ -1,3 +1,5 @@
+import tomllib
+
 import pytest
 
 from grind.config import (
@@ -5,6 +7,7 @@ from grind.config import (
     _extract_option_blocks,
     _key_present_in_file,
     load_config,
+    misplaced_settings,
     show_config,
     update_config,
     write_default_config,
@@ -149,3 +152,48 @@ def test_update_config_preserves_modes(monkeypatch, tmp_path):
     assert (cfg_file.stat().st_mode & 0o777) == 0o600
     backup = next(tmp_path.glob("config.toml.bak.*"))
     assert (backup.stat().st_mode & 0o777) == 0o600
+
+
+def test_update_config_adds_options_above_the_tables(monkeypatch, tmp_path):
+    """An option added below [sources.oss] would belong to that source."""
+    from grind import config as cfg_mod
+
+    cfg_file = tmp_path / "config.toml"
+    sources = '# my sources\n[sources.oss]\nprovider = "github"\n'
+    cfg_file.write_text(f'theme = "dark"\n\n{sources}')
+    monkeypatch.setattr(cfg_mod, "get_config_paths", lambda: [cfg_file])
+    assert update_config() is True
+    updated = cfg_file.read_text()
+    # The sources, with the comment above them, are still last and unchanged.
+    assert updated.endswith(sources)
+    assert updated.index("# section-style =") < updated.index("# my sources")
+    # Uncommented where it was put, the option is a top-level setting.
+    enabled = tomllib.loads(
+        updated.replace('# section-style = "indent"', 'section-style = "gutter"')
+    )
+    assert enabled["section-style"] == "gutter"
+    assert misplaced_settings(enabled) == []
+
+
+def test_update_config_without_tables_still_appends(monkeypatch, tmp_path):
+    from grind import config as cfg_mod
+
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text('theme = "dark"')
+    monkeypatch.setattr(cfg_mod, "get_config_paths", lambda: [cfg_file])
+    assert update_config() is True
+    updated = cfg_file.read_text()
+    assert updated.startswith('theme = "dark"\n\n# --- Added by config update')
+    assert tomllib.loads(updated) == {"theme": "dark"}
+
+
+def test_misplaced_settings_names_options_inside_a_source():
+    cfg = {
+        "theme": "dark",
+        "sources": {
+            "oss": {"provider": "github", "repo": "a/b", "section-style": "gutter"},
+            "work": {"provider": "jira", "emoji": False},
+        },
+    }
+    assert misplaced_settings(cfg) == [("oss", "section-style"), ("work", "emoji")]
+    assert misplaced_settings({"sources": "oops"}) == []

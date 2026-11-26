@@ -19,6 +19,7 @@ from .xdg import get_config_dir, get_config_paths
 
 __all__ = [
     "load_config",
+    "misplaced_settings",
     "show_config",
     "update_config",
     "write_default_config",
@@ -174,6 +175,49 @@ def load_config(config_path: str | None = None) -> dict:
     return {}
 
 
+#: A TOML table header, such as ``[sources.oss]``. Everything after the first
+#: one belongs to a table, so top-level options must be added above it.
+_TABLE_HEADER = re.compile(r"^\s*\[")
+
+
+def misplaced_settings(cfg: dict) -> list[tuple[str, str]]:
+    """Top-level options that TOML has read as part of a source's table.
+
+    Returns ``(source, key)`` for each one. A key written after a
+    ``[sources.<name>]`` header belongs to that table, so ``section-style``
+    added at the bottom of the file is a setting of the last source, which
+    ignores it.
+    """
+    options = {key for key, _block in _extract_option_blocks(_DEFAULT_CONFIG_CONTENT)}
+    sources = cfg.get("sources", {})
+    if not isinstance(sources, dict):
+        return []
+    return [
+        (name, key)
+        for name, table in sources.items()
+        if isinstance(table, dict)
+        for key in table
+        if key in options
+    ]
+
+
+def _insert_before_tables(content: str, addition: str) -> str:
+    """*content* with *addition* placed above its first table.
+
+    The comment lines straight above that table stay with it. With no table,
+    *addition* goes at the end.
+    """
+    lines = content.splitlines(keepends=True)
+    first = next((i for i, line in enumerate(lines) if _TABLE_HEADER.match(line)), None)
+    if first is None:
+        if content and not content.endswith("\n"):
+            content += "\n"
+        return f"{content}\n{addition}"
+    while first and lines[first - 1].lstrip().startswith("#"):
+        first -= 1
+    return "".join(lines[:first]) + f"{addition}\n" + "".join(lines[first:])
+
+
 def write_default_config() -> Path:
     """Write the default config to the XDG config directory.
 
@@ -241,7 +285,7 @@ def _key_present_in_file(key: str, content: str) -> bool:
 
 
 def update_config(config_path: str | None = None, *, emoji: bool = True) -> bool:
-    """Append any missing options to the existing config file.
+    """Add any missing options to the existing config file, above its tables.
 
     Resolves the config file using the same priority order as load_config().
     Creates a timestamped backup before making any changes. Returns True on
@@ -309,12 +353,10 @@ def update_config(config_path: str | None = None, *, emoji: bool = True) -> bool
     readable_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     separator = f"# --- Added by config update (grind v{_version}) on {readable_ts} ---"
 
-    new_content = existing_content
-    if not new_content.endswith("\n"):
-        new_content += "\n"
-    new_content += f"\n{separator}\n"
-    for _key, block in missing:
-        new_content += f"\n{block}\n"
+    # Above the first table: a key added after [sources.<name>] would belong
+    # to that source, and have no effect when uncommented.
+    addition = f"{separator}\n" + "".join(f"\n{block}\n" for _key, block in missing)
+    new_content = _insert_before_tables(existing_content, addition)
 
     try:
         atomic_write_text(existing_path, new_content)
