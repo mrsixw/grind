@@ -58,6 +58,7 @@ provider = "jira"
 url = "https://acme.atlassian.net"
 user = "you@acme.example"
 project = "PROJ"         # optional: the default project
+# projects = ["PROJ", "OPS"]  # or a group of projects, searched together
 ```
 
 Create an API token at **Atlassian account → Security → API tokens**, then:

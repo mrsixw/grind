@@ -37,6 +37,7 @@ grind list                          # mine, open, every source
 grind list -s work                  # one source (repeat -s for several)
 grind list --everyone --in PROJ     # everyone's, in one project or repo
 grind list -s oss --in mrsixw       # every repo an org or user owns
+grind list -s work --in PROJ --in OPS  # several JIRA projects at once
 grind list --state closed -q beans  # free-text search
 grind list --limit 10 --format json | jq '.[].ref'
 ```
