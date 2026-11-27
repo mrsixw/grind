@@ -13,6 +13,8 @@ import requests
 from .constants import (
     APP_NAME,
     RELEASE_ASSET_URL,
+    RELEASE_NOTES_EMOJI,
+    UPDATE_AVAILABLE_EMOJI,
     UPDATE_CHECK_REPO,
     VERSION_CACHE_FILENAME,
     VERSION_CACHE_TTL_SECONDS,
@@ -168,7 +170,7 @@ def check_for_update(show_summary: bool = False, emoji: bool = True):
             return None
         if _is_newer(latest, current):
             msg = with_emoji(
-                "🍟",
+                UPDATE_AVAILABLE_EMOJI,
                 f"A fresh order is ready! v{current} → v{latest} "
                 f"— update at https://github.com/{UPDATE_CHECK_REPO}/releases/latest",
                 emoji,
@@ -179,7 +181,7 @@ def check_for_update(show_summary: bool = False, emoji: bool = True):
                 if body:
                     summary = get_release_summary(body)
                     if summary:
-                        msg += f"\n  {with_emoji('📋', summary, emoji)}"
+                        msg += f"\n  {with_emoji(RELEASE_NOTES_EMOJI, summary, emoji)}"
             return msg
         return None
     except PackageNotFoundError as exc:

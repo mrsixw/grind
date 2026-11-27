@@ -12,7 +12,13 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from .constants import APP_NAME
+from .constants import (
+    APP_NAME,
+    BACKUP_EMOJI,
+    CONFIG_UPDATE_EMOJI,
+    SUCCESS_EMOJI,
+    WARNING_EMOJI,
+)
 from .fsutil import atomic_write_text
 from .ui import with_emoji
 from .xdg import get_config_dir, get_config_paths
@@ -492,7 +498,10 @@ def update_config(config_path: str | None = None, *, emoji: bool = True) -> bool
         )
         return False
 
-    click.echo(with_emoji("📋", f"Updating config at {existing_path}", emoji), err=True)
+    click.echo(
+        with_emoji(CONFIG_UPDATE_EMOJI, f"Updating config at {existing_path}", emoji),
+        err=True,
+    )
 
     try:
         existing_content = existing_path.read_text(encoding="utf-8")
@@ -511,7 +520,8 @@ def update_config(config_path: str | None = None, *, emoji: bool = True) -> bool
     if not missing and rescued == existing_content:
         click.echo(
             click.style(
-                with_emoji("✅", "Config is already up to date.", emoji), fg="green"
+                with_emoji(SUCCESS_EMOJI, "Config is already up to date.", emoji),
+                fg="green",
             ),
             err=True,
         )
@@ -554,7 +564,9 @@ def update_config(config_path: str | None = None, *, emoji: bool = True) -> bool
     except OSError as exc:
         click.echo(click.style(f"Error writing backup: {exc}", fg="red"), err=True)
         return False
-    click.echo(with_emoji("💾", f"Backup saved to {backup_path}", emoji), err=True)
+    click.echo(
+        with_emoji(BACKUP_EMOJI, f"Backup saved to {backup_path}", emoji), err=True
+    )
 
     try:
         atomic_write_text(existing_path, new_content)
@@ -566,7 +578,7 @@ def update_config(config_path: str | None = None, *, emoji: bool = True) -> bool
         click.echo(
             click.style(
                 with_emoji(
-                    "✅",
+                    SUCCESS_EMOJI,
                     f"Moved {blocks} block(s) an earlier update left below your "
                     "first table up above it, where their options take effect.",
                     emoji,
@@ -580,7 +592,9 @@ def update_config(config_path: str | None = None, *, emoji: bool = True) -> bool
     if missing:
         click.echo(
             click.style(
-                with_emoji("✅", f"Added {len(missing)} missing option(s):", emoji),
+                with_emoji(
+                    SUCCESS_EMOJI, f"Added {len(missing)} missing option(s):", emoji
+                ),
                 fg="green",
             ),
             err=True,
@@ -615,4 +629,7 @@ def _report_misplaced(content: str, *, emoji: bool) -> None:
             f"'{key}' is still inside [sources.{source}], where it has no "
             "effect. Move it above the first [sources.<name>] table by hand."
         )
-        click.echo(click.style(with_emoji("⚠️", message, emoji), fg="yellow"), err=True)
+        click.echo(
+            click.style(with_emoji(WARNING_EMOJI, message, emoji), fg="yellow"),
+            err=True,
+        )

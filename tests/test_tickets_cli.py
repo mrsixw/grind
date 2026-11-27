@@ -13,10 +13,11 @@ from click.testing import CliRunner
 from freezegun import freeze_time
 from wcwidth import wcswidth
 
-from grind.cli import FACT_EMOJI, main
+from grind.cli import main
 from grind.constants import (
     BINARY_NAME,
     DEFAULT_SECTION_STYLE,
+    FACT_EMOJI,
     SECTION_STYLES,
     TABLE_STYLES,
 )

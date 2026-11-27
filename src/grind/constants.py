@@ -7,43 +7,80 @@ modules. Nothing here imports from the rest of the package, so it is always
 safe to import from anywhere.
 """
 
+from typing import NamedTuple
+
 __all__ = [
+    "ACTIVE_CONTEXT_PLAIN",
     "APP_ITEMS",
     "APP_NAME",
+    "ASSIGNEE_EMOJI",
+    "BACKUP_EMOJI",
     "BINARY_NAME",
     "BIRTHDAY",
     "BIRTHDAY_NAME",
+    "CAKE_EMOJI",
     "CAKE_RECIPES",
+    "CHECK_FAILED_PLAIN",
     "CHRISTMAS",
+    "CHRISTMAS_EMOJI",
+    "COFFEE_EMOJI",
     "COFFEE_RECIPES",
+    "COMMENT_EMOJI",
+    "CONFIG_UPDATE_EMOJI",
+    "CREATED_EMOJI",
+    "DEBUG_EMOJI",
     "DEFAULT_CACHE_TTL",
+    "DEFAULT_LIMIT",
     "DEFAULT_SECTION_STYLE",
     "DEFAULT_TABLE_STYLE",
+    "DESCRIPTION_EMOJI",
     "DIWALI",
+    "EDITED_EMOJI",
     "EID_AL_ADHA",
     "EID_AL_FITR",
     "ENTRY_POINT_GROUP",
     "ENVVAR_PREFIX",
+    "FACT_EMOJI",
+    "FACT_LABEL_WIDTH",
+    "FAILURE_EMOJI",
+    "GIFT_EMOJI",
     "HANUKKAH_START",
     "HOLI_DATES",
     "HOLI_RAINBOW",
     "HTTP_TIMEOUT_SECONDS",
+    "LABEL_PALETTE_INDEX",
     "LOG_FILENAME",
     "MID_AUTUMN",
+    "MIN_TEXT_WIDTH",
+    "MOVED_EMOJI",
+    "NO_SOURCES_MESSAGE",
+    "OUTPUT_FORMATS",
     "PASSOVER_START",
+    "PASTRY_EMOJI",
     "PASTRY_RECIPES",
     "PRIDE_RAINBOW",
     "RELEASE_ASSET_URL",
+    "RELEASE_NOTES_EMOJI",
     "ROSH_HASHANAH",
     "SEASONAL_PALETTES",
+    "SECTION_LAYOUTS",
+    "SECTION_RULE",
     "SECTION_STYLES",
+    "STATE_NOUNS",
+    "SUCCESS_EMOJI",
     "SUKKOT_START",
+    "SectionLayout",
     "TABLE_STYLES",
+    "TIP_EMOJI",
     "TTL_SUFFIX_MAP",
+    "UPDATE_AVAILABLE_EMOJI",
+    "UPDATE_CHECK_EMOJI",
     "UPDATE_CHECK_REPO",
     "USER_AGENT",
+    "VALUE_PALETTE_INDEX",
     "VERSION_CACHE_FILENAME",
     "VERSION_CACHE_TTL_SECONDS",
+    "WARNING_EMOJI",
 ]
 
 # ── App identity ───────────────────────────────────────────────────────────
@@ -88,11 +125,59 @@ TABLE_STYLES = ("outline", "rounded_outline", "grid", "simple", "github", "plain
 #: breakfast's style, so the sibling apps look alike out of the box.
 DEFAULT_TABLE_STYLE = "outline"
 
+# ── Tickets ────────────────────────────────────────────────────────────────
+
+#: What ``--format`` accepts for ``list`` and ``show``.
+OUTPUT_FORMATS = ("table", "json")
+#: Most tickets ``list`` fetches per source unless told otherwise.
+DEFAULT_LIMIT = 50
+#: How ``list``'s progress line names each ``--state``.
+STATE_NOUNS = {"open": "open tickets", "closed": "closed tickets", "all": "tickets"}
+#: What ``sources --check`` puts before a failure when emoji are off.
+CHECK_FAILED_PLAIN = "error:"
+#: Marks the active context in ``context list`` when emoji are off; with them
+#: on, the mark is COFFEE_EMOJI.
+ACTIVE_CONTEXT_PLAIN = "*"
+NO_SOURCES_MESSAGE = (
+    "No sources configured, so there is nothing to grind. Run "
+    f"`{BINARY_NAME} config init` and add a [sources.<name>] table."
+)
+
 # ── show ───────────────────────────────────────────────────────────────────
 
-#: How ``--section-style`` lays out the text under each of ``show``'s section
-#: headings: indented, marked down its left edge with a bar, or flush left.
-SECTION_STYLES = ("indent", "gutter", "plain")
+#: Cells a ``show`` field label is padded to, so the values line up.
+FACT_LABEL_WIDTH = 10
+#: Palette positions for labels and values on days a seasonal palette cycles.
+LABEL_PALETTE_INDEX = 0
+VALUE_PALETTE_INDEX = 1
+#: What the rule under a ``show`` section heading is drawn with.
+SECTION_RULE = "─"
+#: The narrowest the text under a ``show`` heading is wrapped to, so a tiny
+#: window still gets whole words on each line rather than a letter or two.
+MIN_TEXT_WIDTH = 20
+
+
+class SectionLayout(NamedTuple):
+    """Where one ``--section-style`` puts a ``show`` section's lines."""
+
+    #: In front of the heading and its rule.
+    heading: str
+    #: In front of every line of the section's text, blank ones included.
+    text: str
+    #: Added to ``text`` for a comment's own lines, under its author line.
+    nest: str
+
+
+#: What each ``--section-style`` does with the text under a heading: indent
+#: it, mark it down its left edge with a bar, or leave it flush left. Indent
+#: and gutter line their headings up with the fields above.
+SECTION_LAYOUTS = {
+    "indent": SectionLayout(heading="  ", text="    ", nest="  "),
+    "gutter": SectionLayout(heading="  ", text="  │ ", nest="  "),
+    "plain": SectionLayout(heading="", text="", nest=""),
+}
+#: The ``--section-style`` choices, in help-text order.
+SECTION_STYLES = tuple(SECTION_LAYOUTS)
 DEFAULT_SECTION_STYLE = "indent"
 
 # ── UI & theming ───────────────────────────────────────────────────────────
@@ -132,6 +217,65 @@ HOLI_RAINBOW = [
 
 # Spinner items — coffee-shop counter themed ☕🥐🍩
 APP_ITEMS = ["☕", "🫘", "🥐", "🍩", "🧋", "🫖", "🥛", "🍪", "🧁", "🥯"]
+
+# ── Emoji ──────────────────────────────────────────────────────────────────
+#
+# Every emoji grind prints, named for what it marks, so each is defined once.
+# ui.with_emoji (or a check of settings.emoji) decides whether it is printed.
+
+#: grind's own mark: an empty queue, the active context, the coffee recipes.
+COFFEE_EMOJI = "☕"
+#: Something went wrong but grind carried on: a source down, a stale context.
+WARNING_EMOJI = "⚠️"
+#: A check passed or a file was written.
+SUCCESS_EMOJI = "✅"
+#: A source failed ``sources --check``.
+FAILURE_EMOJI = "❌"
+#: Heads the ``--debug-summary`` table.
+DEBUG_EMOJI = "🐛"
+#: ``update`` looking for a newer release.
+UPDATE_CHECK_EMOJI = "🔍"
+#: The notice that a newer release is out.
+UPDATE_AVAILABLE_EMOJI = "🍟"
+#: The release notes under that notice.
+RELEASE_NOTES_EMOJI = "📋"
+#: ``config update`` starting on a config file.
+CONFIG_UPDATE_EMOJI = "📋"
+#: ``config update`` saving a backup of the old file.
+BACKUP_EMOJI = "💾"
+
+#: The messages after a write: each names what was done to the ticket.
+CREATED_EMOJI = "🫘"
+EDITED_EMOJI = "✏️"
+MOVED_EMOJI = "➡️"
+#: A comment: one added, and the heading over a ticket's comments in ``show``.
+COMMENT_EMOJI = "💬"
+#: An assignee: the ``assign`` message, and the field in ``show``.
+ASSIGNEE_EMOJI = "👤"
+#: The heading over a ticket's description in ``show``.
+DESCRIPTION_EMOJI = "📝"
+#: The icon in front of each ``show`` field. Every one is East Asian Width
+#: "W" with emoji presentation by default, so each takes exactly two cells and
+#: the values stay aligned. Emoji needing a variation selector (🏷️, ✍️) are
+#: avoided: terminals disagree on how wide those are. DESCRIPTION_EMOJI and
+#: COMMENT_EMOJI are "W" too, so the rule under each heading measures true.
+FACT_EMOJI = {
+    "Status": "🚦",
+    "Type": "🧩",
+    "Assignee": ASSIGNEE_EMOJI,
+    "Reporter": "📣",
+    "Labels": "🔖",
+    "Created": "📅",
+    "Updated": "🔄",
+    "URL": "🔗",
+}
+
+#: The recipe banners: ``--pastry``, ``--cake``, and the holiday gifts.
+CHRISTMAS_EMOJI = "🎄"
+GIFT_EMOJI = "🎁"
+TIP_EMOJI = "💡"
+PASTRY_EMOJI = "🥐"
+CAKE_EMOJI = "🎂"
 
 # ── Holiday date tables (2024–2045) ────────────────────────────────────────
 #
