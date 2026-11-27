@@ -405,7 +405,7 @@ def test_a_block_with_every_option_still_commented_out_is_moved(
     block = f"{SEPARATOR}\n# Print emoji.\n# emoji = true\n"
     content = f"{_DEFAULT_CONFIG_CONTENT}\n{SOURCE}\n{block}"
     updated, _parsed = _update(monkeypatch, tmp_path, content)
-    assert updated.index("# Print emoji.") < updated.index("[sources.oss]")
+    assert updated.index("# Print emoji.") < updated.index(SOURCE)
     assert "Moved 1 block(s)" in capsys.readouterr().err
     enabled = tomllib.loads(updated.replace(block, block.replace("# emoji", "emoji")))
     assert enabled["emoji"] is True
@@ -422,7 +422,7 @@ def test_an_option_with_no_blank_line_before_the_next_table_moves_whole(
     content = f"{SOURCE}\n{SEPARATOR}# Print emoji.\nemoji = true\n{work}"
     updated, parsed = _update(monkeypatch, tmp_path, content)
     assert parsed["emoji"] is True
-    assert updated.index("# Print emoji.") < updated.index("[sources.oss]")
+    assert updated.index("# Print emoji.") < updated.index(SOURCE)
 
 
 def test_a_file_that_is_not_valid_toml_is_left_alone(monkeypatch, tmp_path):
