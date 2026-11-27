@@ -12,7 +12,7 @@ from wcwidth import wcswidth
 
 from .settings import Settings
 
-__all__ = ["render_table"]
+__all__ = ["render_table", "terminal_columns"]
 
 #: What shutil assumes when stdout is not a terminal (a pipe, a test runner).
 _FALLBACK_TERMINAL_SIZE = (120, 24)
@@ -67,6 +67,11 @@ def _paint_table(settings: Settings, table: str) -> str:
     return "\n".join(lines)
 
 
+def terminal_columns() -> int:
+    """How many cells wide the terminal is, or the fallback when piped."""
+    return shutil.get_terminal_size(_FALLBACK_TERMINAL_SIZE).columns
+
+
 def render_table(
     settings: Settings,
     headers: list[str],
@@ -90,7 +95,7 @@ def render_table(
       wraps the cell instead, in every style grind offers, which would spread
       one row over several lines.
     """
-    columns = shutil.get_terminal_size(_FALLBACK_TERMINAL_SIZE).columns
+    columns = terminal_columns()
 
     def draw(body: list[list[str]]) -> str:
         return tabulate(

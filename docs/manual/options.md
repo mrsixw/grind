@@ -14,7 +14,7 @@ List tickets across your sources. The default when no subcommand is given.
 | Option | Meaning |
 | ------ | ------- |
 | `-s`, `--source NAME` | Only this source. Repeatable. Default: every source |
-| `--mine` / `--all` | Tickets assigned to you (default), or to anyone |
+| `--mine` / `--everyone` | Tickets assigned to you, or to anyone. Default: mine, unless the source sets `mine = false`. `--all` still works as an alias for `--everyone` |
 | `--state open\|closed\|all` | Which tickets to include. Default: `open` |
 | `-q`, `--query TEXT` | Free-text search |
 | `--in PROJECT` | Project or repository, overriding the source's default |
@@ -124,7 +124,15 @@ Write a default config file to `~/.config/grind/config.toml`.
 
 Merge any options missing from your existing config file in from the
 template, writing a timestamped backup first. Useful after upgrading to a
-release that introduces new config keys.
+release that introduces new config keys. They go in above your first
+`[sources.<name>]` table, so each one still works once you uncomment it.
+
+Earlier versions added them at the end of the file instead, below your
+sources, where TOML reads every option as part of the last source and grind
+ignores it. `config update` moves any such block, marked
+`# --- Added by config update`, back above the first table. It leaves a block
+alone if it also holds a key only a source takes, since that was meant for the
+source.
 
 ### `completions [bash|zsh|fish]`
 
@@ -172,7 +180,11 @@ project = "PROJ"                 # optional default project
 default-type = "Task"            # issue type used by create
 jql = "labels = backend"         # optional extra filter for list
 api-version = 3                  # 2 for Server / Data Center
+mine = false                     # list everyone's tickets by default
 ```
+
+`mine` works on any source and defaults to `true`. `--mine` and `--everyone`
+override it for one run.
 
 `token-env` names an environment variable. The token itself never goes in the
 config file, so the file is always safe to commit or paste into a bug report.
@@ -247,11 +259,18 @@ Every style keeps the headings.
   │ - run the descaler
 ```
 
+In `indent` and `gutter`, a line too long for the terminal is wrapped at a
+space, and the wrapped part keeps the indent or bar. A word wider than the
+terminal, such as a long URL, is cut. `plain` leaves wrapping to the terminal,
+so a long URL stays whole.
+
 ```bash
 grind --section-style gutter show oss:#7
 ```
 
-Config key: `section-style = "indent"`
+Config key: `section-style = "indent"`. Like every setting, it goes above the
+first `[sources.<name>]` table: below one, TOML reads it as part of that
+source, and grind warns that it has no effect.
 
 ### `--emoji` / `--no-emoji`
 
@@ -261,7 +280,7 @@ prints:
 - the icon in front of each field in `show`, and the 📝 and 💬 on its
   Description and Comments headings
 - the emoji at the end of the progress line, which then ends in its dots:
-  `Grinding through your tickets...`
+  `Grinding through open tickets assigned to you in oss, work...`
 - the emoji in messages: tickets created, edited, commented on, assigned or
   moved, "Nothing to grind", source warnings, `config` and `update` messages,
   the update notice and the debug summary
@@ -289,7 +308,7 @@ Config key: `emoji = true`
 While `list` fetches, it says so on stderr (enabled by default):
 
 ```text
-Grinding through your tickets... ☕
+Grinding through open tickets assigned to you in oss, work... ☕
 ```
 
 `--no-progress` leaves that line out. Warnings, errors and "Nothing to grind"

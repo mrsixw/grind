@@ -18,16 +18,22 @@ import random
 import shutil
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from enum import StrEnum, auto
 
 import click
-from wcwidth import wcswidth
+from wcwidth import wcswidth, wcwidth
 
 # Imported for their side effect: each registers a built-in provider.
 from . import github, jira  # noqa: F401
 from .cache import parse_ttl, read_cache, write_cache
-from .config import load_config, show_config, update_config, write_default_config
+from .config import (
+    load_config,
+    misplaced_settings,
+    show_config,
+    update_config,
+    write_default_config,
+)
 from .constants import (
     APP_ITEMS,
     APP_NAME,
@@ -49,7 +55,7 @@ from .providers import (
     resolve_ref,
 )
 from .settings import Settings
-from .tables import render_table
+from .tables import render_table, terminal_columns
 from .tickets import ME, STATES, ListQuery, Ticket, TicketChanges, TicketDraft
 from .ui import (
     CALENDAR_NAMES,
@@ -322,9 +328,32 @@ def main(
         pastry=pastry,
         started_at=started_at,
     )
+    # config update moves them, so warning about them there is only noise.
+    if ctx.invoked_subcommand != "config":
+        _warn_misplaced_settings(ctx.obj)
 
     if ctx.invoked_subcommand is None:
         ctx.invoke(list_tickets)
+
+
+def _warn_misplaced_settings(settings: Settings) -> None:
+    """Say so when a setting has landed inside a ``[sources.<name>]`` table.
+
+    TOML puts every key after a table header into that table, so a setting
+    written below the sources is read as part of the last one, and grind would
+    otherwise ignore it without a word.
+    """
+    for source, key in misplaced_settings(settings.cfg):
+        message = (
+            f"'{key}' is inside [sources.{source}], so it has no effect. "
+            "Move it above the first [sources.<name>] table, or run "
+            f"`{BINARY_NAME} config update` if an earlier update put it there."
+        )
+        click.echo(
+            settings.theme.apply(settings.with_emoji("⚠️", message), role="warn"),
+            err=True,
+            color=settings.colour,
+        )
 
 
 def _config_choice(key: str, name: str, choices: tuple[str, ...]) -> str:
@@ -455,6 +484,10 @@ def finish_run(
 # ── Tickets ─────────────────────────────────────────────────────────────────
 
 _FORMATS = ("table", "json")
+#: Most tickets ``list`` fetches per source unless told otherwise.
+_DEFAULT_LIMIT = 50
+#: How the scope line names each ``--state``.
+_STATE_NOUNS = {"open": "open tickets", "closed": "closed tickets", "all": "tickets"}
 #: The icon in front of each ``show`` field. Every one is East Asian Width
 #: "W" with emoji presentation by default, so each takes exactly two cells and
 #: the values stay aligned. Emoji needing a variation selector (🏷️, ✍️) are
@@ -480,6 +513,9 @@ _LABEL_INDEX = 0
 _VALUE_INDEX = 1
 #: What the rule under a ``show`` section heading is drawn with.
 _RULE = "─"
+#: The narrowest the text under a ``show`` heading is wrapped to, so a tiny
+#: window still gets whole words on each line rather than a letter or two.
+_MIN_TEXT_WIDTH = 20
 
 
 @dataclass(frozen=True)
@@ -633,10 +669,11 @@ def _render_ticket(settings: Settings, ticket: Ticket) -> str:
         _render_fact(settings, label, value) for label, value in facts.items() if value
     ]
     layout = _SECTION_LAYOUTS[settings.section_style]
+    columns = terminal_columns()
     # A description of only whitespace has nothing to put under a heading.
     if ticket.body.strip():
         lines += _render_heading(settings, layout, _DESCRIPTION_EMOJI, "Description")
-        lines += _render_block(layout.text, ticket.body)
+        lines += _render_block(layout.text, ticket.body, columns)
     if ticket.comments:
         title = f"Comments ({len(ticket.comments)})"
         lines += _render_heading(settings, layout, _COMMENTS_EMOJI, title)
@@ -645,7 +682,7 @@ def _render_ticket(settings: Settings, ticket: Ticket) -> str:
                 lines.append(layout.text.rstrip())
             byline = f"{comment.author} · {_short_date(comment.created)}"
             lines.append(layout.text + settings.paint(byline, role="accent"))
-            lines += _render_block(layout.text + layout.nest, comment.body)
+            lines += _render_block(layout.text + layout.nest, comment.body, columns)
     return "\n".join(lines)
 
 
@@ -661,7 +698,7 @@ def _render_heading(
     return ["", f"{layout.heading}{heading}", f"{layout.heading}{rule}"]
 
 
-def _render_block(prefix: str, text: str) -> list[str]:
+def _render_block(prefix: str, text: str, columns: int) -> list[str]:
     """*text* with *prefix* on every line, its blank lines included.
 
     A blank line keeps the prefix too (less any trailing space), so in the
@@ -669,11 +706,82 @@ def _render_block(prefix: str, text: str) -> list[str]:
     lines at either end are dropped, so none opens a gap under a heading; an
     indented first line keeps its indent. Tabs are expanded first, since the
     prefix would otherwise move the text off the terminal's tab stops.
+
+    A line too long for the *columns*-wide terminal is wrapped here rather
+    than left to the terminal, which would start the rest of it at the left
+    edge without the prefix and break the gutter. With no prefix there is
+    nothing to keep, so the terminal wraps it, and a long URL stays whole.
     """
-    lines = text.expandtabs().rstrip().splitlines()
-    while lines and not lines[0].strip():
+    lines = [line.rstrip() for line in text.expandtabs().rstrip().splitlines()]
+    while lines and not lines[0]:
         lines.pop(0)
-    return [f"{prefix}{line}".rstrip() for line in lines]
+    if not prefix:
+        return lines
+    width = max(columns - _cells(prefix), _MIN_TEXT_WIDTH)
+    return [
+        f"{prefix}{piece}".rstrip() for line in lines for piece in _wrap(line, width)
+    ]
+
+
+def _cells(text: str) -> int:
+    """How many terminal cells *text* takes; a control character takes none.
+
+    ``wcswidth`` measures whole sequences, such as an emoji with a variation
+    selector, but gives up on a control character, so that case is counted a
+    character at a time.
+    """
+    cells = wcswidth(text)
+    if cells >= 0:
+        return cells
+    return sum(max(wcwidth(char), 0) for char in text)
+
+
+def _wrap(line: str, width: int) -> list[str]:
+    """Break *line* at spaces into pieces no wider than *width* cells.
+
+    Each piece after the first keeps the line's own indent, so a wrapped list
+    item stays under its marker. A word too wide for a line on its own, such
+    as a long URL, is cut at the width: left whole, the terminal would wrap it
+    and break the gutter anyway. A run of spaces inside a wrapped line becomes
+    one; a line that fits is left exactly as it was.
+    """
+    if _cells(line) <= width:
+        return [line]
+    indent = line[: len(line) - len(line.lstrip(" "))]
+    # An indent eating most of the line would leave no room for the words.
+    if _cells(indent) > width // 2:
+        indent = ""
+    pieces: list[str] = []
+    current = ""
+    for word in line.split(" "):
+        if not word:
+            continue
+        candidate = f"{current} {word}" if current else word
+        if _cells(indent + candidate) <= width:
+            current = candidate
+            continue
+        if current:
+            pieces.append(indent + current)
+        while _cells(indent + word) > width:
+            head = _fit(word, width - _cells(indent))
+            pieces.append(indent + head)
+            word = word[len(head) :]
+        current = word
+    if current:
+        pieces.append(indent + current)
+    return pieces
+
+
+def _fit(word: str, cells: int) -> str:
+    """The longest start of *word* that fits in *cells*, at least one char."""
+    taken = ""
+    for char in word:
+        # A zero-width mark (a variation selector, a joiner) stays with the
+        # character before it rather than starting the next piece.
+        if taken and wcwidth(char) and _cells(taken + char) > cells:
+            break
+        taken += char
+    return taken
 
 
 def _emit_ticket(settings: Settings, ticket: Ticket, output_format: str) -> None:
@@ -681,6 +789,35 @@ def _emit_ticket(settings: Settings, ticket: Ticket, output_format: str) -> None
         click.echo(json.dumps(ticket.to_dict(), indent=2))
     else:
         click.echo(_render_ticket(settings, ticket))
+
+
+def _source_mine(provider: Provider) -> bool:
+    """Whether *provider*'s source lists only your tickets by default."""
+    mine = provider.config.get("mine", True)
+    if not isinstance(mine, bool):
+        raise click.ClickException(
+            f"Source '{provider.source}': mine must be true or false, not '{mine}'."
+        )
+    return mine
+
+
+def _describe_scope(query: ListQuery, mine_by_source: dict[str, bool]) -> str:
+    """Say what ``list`` is about to show, so a filtered list never looks
+    like the whole story: whose tickets, in which state, from where.
+    """
+    yours = [name for name, mine in mine_by_source.items() if mine]
+    everyones = [name for name, mine in mine_by_source.items() if not mine]
+    parts = []
+    if yours:
+        parts.append(f"assigned to you in {', '.join(yours)}")
+    if everyones:
+        parts.append(f"for everyone in {', '.join(everyones)}")
+    line = f"Grinding through {_STATE_NOUNS[query.state]} {'; '.join(parts)}"
+    if query.container:
+        line += f", within {query.container}"
+    if query.text:
+        line += f', matching "{query.text}"'
+    return line + "..."
 
 
 def _cached_list(
@@ -716,11 +853,17 @@ def _cached_list(
     help="Only this source. Repeatable. Default: every configured source.",
 )
 @click.option(
-    "--mine/--all",
+    "--mine/--everyone",
     "mine",
-    default=True,
-    help="Tickets assigned to you (default), or to anyone.",
+    default=None,
+    help=(
+        "Tickets assigned to you, or to anyone. Default: mine, unless the "
+        "source sets mine = false."
+    ),
 )
+# The flag's first spelling, kept working so nothing that used it breaks. A
+# separate hidden option, because a flag pair cannot hide one of its names.
+@click.option("--all", "everyone", is_flag=True, default=False, hidden=True)
 @click.option(
     "--state",
     type=click.Choice(STATES),
@@ -753,7 +896,8 @@ def _cached_list(
 def list_tickets(
     settings: Settings,
     source_names=(),
-    mine=True,
+    mine=None,
+    everyone=False,
     state="open",
     text="",
     container="",
@@ -763,20 +907,28 @@ def list_tickets(
     """List tickets across your sources (the default command)."""
     output_format = _format(settings, output_format)
     sources = _pick_sources(_load_sources(settings), tuple(source_names))
+    if everyone:
+        mine = False
     query = ListQuery(
-        mine=mine,
         state=state,
         text=text,
-        limit=resolve_option(limit, settings.cfg, "limit", 50),
+        limit=resolve_option(limit, settings.cfg, "limit", _DEFAULT_LIMIT),
         container=container,
     )
-    _progress(settings, "Grinding through your tickets...")
+    # The flag decides for every source; without it, each source's own default.
+    mine_by_source = {
+        name: mine if mine is not None else _source_mine(provider)
+        for name, provider in sources.items()
+    }
+    _progress(settings, _describe_scope(query, mine_by_source))
 
     tickets: list[Ticket] = []
     failed = False
-    for provider in sources.values():
+    for name, provider in sources.items():
         try:
-            tickets += _cached_list(settings, provider, query)
+            tickets += _cached_list(
+                settings, provider, replace(query, mine=mine_by_source[name])
+            )
         except ProviderError as exc:
             # One source being down must not hide the others' tickets.
             failed = True

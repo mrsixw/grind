@@ -6,6 +6,7 @@ against a plugin are in ``test_plugin_cli.py``.
 
 import json
 import unicodedata
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from click.testing import CliRunner
@@ -13,7 +14,12 @@ from freezegun import freeze_time
 from wcwidth import wcswidth
 
 from grind.cli import FACT_EMOJI, main
-from grind.constants import DEFAULT_SECTION_STYLE, SECTION_STYLES, TABLE_STYLES
+from grind.constants import (
+    BINARY_NAME,
+    DEFAULT_SECTION_STYLE,
+    SECTION_STYLES,
+    TABLE_STYLES,
+)
 from grind.jira import text_to_adf
 
 GH = "https://api.github.com"
@@ -112,7 +118,9 @@ def test_list_merges_sources_newest_first(grind, both):
     assert first[:2] == ["0", "work:PROJ-1"]
     assert second[:2] == ["1", "oss:acme/beans#7"]
     assert first[-1] == "Order more beans"
-    assert "Grinding through your tickets" in result.stderr
+    assert (
+        "Grinding through open tickets assigned to you in oss, work..." in result.stderr
+    )
     assert "Grinding" not in result.stdout
 
 
@@ -221,9 +229,76 @@ def test_list_unknown_source_is_an_error(grind, both):
 
 
 def test_list_passes_filters_through(grind, both):
-    grind("list", "--all", "--state", "closed", "-q", "kettle", "--in", "acme/milk")
+    grind(
+        "list", "--everyone", "--state", "closed", "-q", "kettle", "--in", "acme/milk"
+    )
     github_q = both.request_history[0].qs["q"][0]
     assert github_q == "is:issue repo:acme/milk state:closed kettle"
+
+
+def searches(history):
+    """The GitHub query and the JIRA JQL that a list run sent, in that order.
+
+    Parsed from the URL, because requests-mock's ``qs`` lowercases values and
+    would let ``currentUser()`` checks pass whatever was sent.
+    """
+
+    def param(fragment, name):
+        url = next(r.url for r in history if fragment in r.url)
+        return parse_qs(urlsplit(url).query)[name][0]
+
+    return param("search/issues", "q"), param("search/jql", "jql")
+
+
+def test_list_everyone_drops_the_assignee_filter_everywhere(grind, both):
+    result = grind("list", "--everyone")
+    assert result.exit_code == 0, result.output
+    github_q, jql = searches(both.request_history)
+    assert "assignee" not in github_q
+    assert "currentUser()" not in jql
+    assert "for everyone in oss, work" in result.stderr
+
+
+def test_list_all_still_works_but_is_no_longer_advertised(grind, both):
+    result = grind("list", "--all")
+    assert result.exit_code == 0, result.output
+    assert "assignee" not in searches(both.request_history)[0]
+    assert "--all" not in grind("list", "--help").stdout
+    assert "--everyone" in grind("list", "--help").stdout
+
+
+TEAM_PROJECT = CONFIG.replace('project = "PROJ"', 'project = "PROJ"\nmine = false')
+
+
+def test_a_source_can_default_to_everyone(grind, both):
+    result = grind("list", config=TEAM_PROJECT)
+    assert result.exit_code == 0, result.output
+    github_q, jql = searches(both.request_history)
+    assert "assignee:@me" in github_q
+    assert "currentUser()" not in jql
+    assert "open tickets assigned to you in oss; for everyone in work" in result.stderr
+
+
+def test_the_mine_flag_overrides_a_source_default(grind, both):
+    grind("list", "--mine", config=TEAM_PROJECT)
+    assert "currentUser()" in searches(both.request_history)[1]
+
+
+def test_a_non_boolean_mine_is_a_clean_error(grind, both):
+    result = grind("list", config=CONFIG.replace('"PROJ"', '"PROJ"\nmine = "no"'))
+    assert result.exit_code == 1
+    assert "Source 'work': mine must be true or false, not 'no'" in result.stderr
+
+
+def test_the_scope_line_names_the_state_container_and_search(grind, both):
+    result = grind(
+        "list", "-s", "oss", "--state", "all", "--in", "acme/milk", "-q", "kettle"
+    )
+    assert (
+        "Grinding through tickets assigned to you in oss, within acme/milk, "
+        'matching "kettle"...' in result.stderr
+    )
+    assert "Grinding" not in result.stdout
 
 
 def test_list_empty_says_so_on_stderr_and_leaves_stdout_empty(grind, requests_mock):
@@ -443,7 +518,8 @@ def test_no_emoji_means_none_anywhere(grind, requests_mock, mock, args):
 
 def test_no_emoji_ends_the_progress_line_with_its_dots(grind, both):
     result = grind("--no-emoji", "list")
-    assert "Grinding through your tickets...\n" in result.stderr
+    progress = "Grinding through open tickets assigned to you in oss, work...\n"
+    assert progress in result.stderr
 
 
 @pytest.mark.parametrize(
@@ -697,6 +773,128 @@ def test_an_unknown_section_style_in_config_lists_the_choices(grind):
     assert result.exit_code == 1
     assert "Invalid section-style 'boxed'" in result.stderr
     assert ", ".join(SECTION_STYLES) in result.stderr
+
+
+def test_a_setting_below_the_sources_is_named_not_silently_ignored(
+    grind, requests_mock
+):
+    # TOML reads a key after [sources.work] as part of that table.
+    result = show_sectioned(
+        grind, requests_mock, config=CONFIG + 'section-style = "gutter"\n'
+    )
+    assert result.exit_code == 0, result.output
+    assert "'section-style' is inside [sources.work], so it has no effect" in (
+        result.stderr
+    )
+    assert f"`{BINARY_NAME} config update`" in result.stderr
+    assert result.stdout.endswith(SECTIONS["indent"])
+
+
+def test_config_update_moves_what_an_old_update_misplaced_without_a_warning(grind):
+    old_block = "# --- Added by config update (grind v0.5.0) on 2026-11-26 ---\n"
+    config = f'{CONFIG}\n{old_block}section-style = "gutter"\n'
+    result = grind("config", "update", config=config)
+    assert result.exit_code == 0, result.output
+    assert "Moved 1 block(s)" in result.stderr
+    assert "has no effect" not in result.stderr
+
+
+def test_config_update_names_what_it_could_not_move(grind):
+    result = grind("config", "update", config=CONFIG + 'section-style = "gutter"\n')
+    assert result.exit_code == 0, result.output
+    assert "'section-style' is still inside [sources.work]" in result.stderr
+
+
+def test_a_setting_above_the_sources_draws_no_warning(grind, requests_mock):
+    result = show_sectioned(
+        grind, requests_mock, config='section-style = "gutter"\n' + CONFIG
+    )
+    assert result.exit_code == 0, result.output
+    assert "has no effect" not in result.stderr
+    assert result.stdout.endswith(SECTIONS["gutter"])
+
+
+#: Columns in the narrow terminal the wrapping tests run in.
+NARROW_TERMINAL = 40
+#: A word longer than a narrow terminal is wide.
+LONG_URL = "https://example.com/" + "a" * NARROW_TERMINAL
+
+
+@pytest.mark.parametrize("style", ["indent", "gutter"])
+def test_long_lines_wrap_inside_the_section_so_the_prefix_stays(
+    grind, requests_mock, monkeypatch, style
+):
+    monkeypatch.setenv("COLUMNS", str(NARROW_TERMINAL))
+    body = "Slow shots all week, and the grinder is clogged again. " * 2
+    item = f"  - see {LONG_URL} for the descaling steps we always forget"
+    body += f"\n{item}"
+    comments = [{**SECTIONED_COMMENTS[0], "body": body}]
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(body=body))
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7/comments", json=comments)
+    result = grind("--section-style", style, "show", "oss:#7", "--comments")
+    assert result.exit_code == 0, result.output
+    layout = SECTIONS[style].splitlines()
+    prefix = next(line for line in layout if "Slow shots" in line).split("Slow")[0]
+    description = result.stdout.split("──\n", 1)[1].split("\n\n", 1)[0]
+    lines = description.splitlines()
+    assert len(lines) > 2
+    # Every line, wrapped or not, keeps the prefix and fits the terminal.
+    assert all(line.startswith(prefix) for line in lines)
+    assert all(wcswidth(line) <= NARROW_TERMINAL for line in lines)
+    # Nothing is lost: the words and the cut URL.
+    text = " ".join(line[len(prefix) :].strip() for line in lines)
+    assert text.replace(" ", "") == body.replace("\n", "").replace(" ", "")
+    # The list item wraps under its own indent, not the section's edge.
+    start = next(i for i, line in enumerate(lines) if "- see" in line)
+    assert lines[start] == f"{prefix}  - see"
+    assert all(line.startswith(prefix + "  ") for line in lines[start:])
+    # The comment's text, nested deeper, wraps under its own prefix too.
+    comment = result.stdout.split("Comments (1)", 1)[1].splitlines()[3:]
+    assert all(line.startswith(prefix + "  ") for line in comment if line)
+    assert all(wcswidth(line) <= NARROW_TERMINAL for line in comment)
+
+
+def test_lines_that_fit_are_left_as_they_were(grind, requests_mock, monkeypatch):
+    monkeypatch.setenv("COLUMNS", str(NARROW_TERMINAL))
+    # Trailing spaces and a blank line of tabs are both wider than the room.
+    padding = " " * NARROW_TERMINAL
+    body = f"id    42{padding}\n" + "\t" * NARROW_TERMINAL + "\nshort  line"
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(body=body))
+    result = grind("--section-style", "gutter", "show", "oss:#7")
+    assert result.stdout.endswith("  │ id    42\n  │\n  │ short  line\n")
+
+
+def test_a_deep_indent_gives_its_room_back_to_the_words(
+    grind, requests_mock, monkeypatch
+):
+    monkeypatch.setenv("COLUMNS", str(NARROW_TERMINAL))
+    words = " ".join(["descale"] * NARROW_TERMINAL)
+    body = " " * NARROW_TERMINAL + words
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(body=body))
+    result = grind("--section-style", "gutter", "show", "oss:#7")
+    lines = result.stdout.split("──\n", 1)[1].splitlines()
+    assert all(line.startswith("  │ descale") for line in lines)
+    assert all(wcswidth(line) <= NARROW_TERMINAL for line in lines)
+
+
+def test_plain_leaves_wrapping_to_the_terminal(grind, requests_mock, monkeypatch):
+    monkeypatch.setenv("COLUMNS", str(NARROW_TERMINAL))
+    body = f"see {LONG_URL} for steps"
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(body=body))
+    result = grind("--section-style", "plain", "show", "oss:#7")
+    assert result.stdout.endswith(f"\n{body}\n")
+
+
+def test_an_emoji_is_measured_as_the_terminal_draws_it(
+    grind, requests_mock, monkeypatch
+):
+    monkeypatch.setenv("COLUMNS", str(NARROW_TERMINAL))
+    body = " ".join(["⚠️ hot"] * NARROW_TERMINAL)
+    requests_mock.get(f"{GH}/repos/acme/beans/issues/7", json=gh_issue(body=body))
+    result = grind("--section-style", "gutter", "show", "oss:#7")
+    lines = result.stdout.split("──\n", 1)[1].splitlines()
+    assert len(lines) > 1
+    assert all(wcswidth(line) <= NARROW_TERMINAL for line in lines)
 
 
 def test_without_emoji_the_section_headings_keep_their_words(grind, requests_mock):
