@@ -134,9 +134,15 @@ def test_jira_error_messages_are_surfaced(cloud, requests_mock):
 # ── list ───────────────────────────────────────────────────────────────────
 
 
+def test_list_takes_only_one_project_for_now(cloud, requests_mock):
+    with pytest.raises(ProviderError, match="takes one --in project"):
+        cloud.list_tickets(ListQuery(containers=("PROJ", "OPS")))
+    assert requests_mock.call_count == 0
+
+
 def test_list_builds_jql_and_maps_tickets(cloud, requests_mock):
     requests_mock.get(f"{V3}/search/jql", json={"issues": [raw_issue()]})
-    (ticket,) = cloud.list_tickets(ListQuery(text='say "hi"', container="PROJ"))
+    (ticket,) = cloud.list_tickets(ListQuery(text='say "hi"', containers=("PROJ",)))
     assert requests_mock.last_request.qs["jql"] == [
         'project = "proj" and assignee = currentuser() and statuscategory != done '
         'and text ~ "say \\"hi\\"" order by updated desc'

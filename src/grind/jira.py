@@ -152,7 +152,11 @@ class JiraProvider(HttpProvider):
 
     def _jql(self, query: ListQuery) -> str:
         clauses = []
-        project = query.container or self.config.get("project")
+        if len(query.containers) > 1:
+            raise ProviderError(
+                f"Source '{self.source}' is JIRA, which takes one --in project."
+            )
+        project = (query.containers or (None,))[0] or self.config.get("project")
         if project:
             clauses.append(f"project = {_jql_quote(str(project))}")
         if self.config.get("jql"):
