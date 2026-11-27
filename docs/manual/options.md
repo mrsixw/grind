@@ -210,6 +210,68 @@ config file, so the file is always safe to commit or paste into a bug report.
 TOML requires tables to come after every top-level key, so keep the
 `[sources.*]` tables at the bottom of the file.
 
+## Working contexts
+
+A context is a named narrowing of one source: an org, a repo or a group of
+repos, a project or a group of projects, and whether you see only your own
+tickets. Define as many as you like:
+
+```toml
+[contexts.grind]
+source = "oss"
+repos = ["mrsixw/grind"]
+
+[contexts.mrsixw]
+source = "oss"
+org = "mrsixw"
+mine = false
+
+[contexts.platform]
+source = "work"
+projects = ["PLAT", "OPS"]
+```
+
+A context takes `source` (required), the scope keys its source's provider
+understands (`org`, `repo` and `repos` for GitHub; `project`, `projects` and
+`jql` for JIRA, or whatever a plugin declares) and `mine`. Anything else,
+credentials and URLs above all, is refused when the context is used.
+
+Setting any scope key replaces the source's whole scope, `jql` included, so a
+context always says everything about where to look. A context's `org` is not
+out-ranked by the source's more specific `repo`, and a context that sets only
+`jql` searches with that alone, without the source's `project`.
+
+Precedence, highest first: command flags (`--in`, `--mine` / `--everyone`),
+then the context, then the source's own config.
+
+While a context is active, `list` and `create` use its source. `--source`
+naming a different source sets the context aside for that run, with a note on
+stderr. A context's repos are never applied to another source. `create` files
+into the context's repo or project when it has exactly one, and otherwise asks
+for `--in`, listing the choices.
+
+### `-C`, `--context NAME`
+
+Use the context for this run only, without changing the stored one. Also
+honoured via `GRIND_CONTEXT`. Goes before the subcommand:
+`grind --context platform list`.
+
+### `context` / `context show`
+
+Print the context in force and what it narrows.
+
+### `context list`
+
+List the defined contexts. ☕ marks the active one, or `*` with
+[`--no-emoji`](#--emoji----no-emoji).
+
+### `context use NAME` / `context use --none`
+
+Make `NAME` the context for every run from now on, or clear it. The choice is
+kept in the XDG state directory (`~/.local/state/grind/context`), not in the
+config file. If the stored context is later removed from the config, grind
+warns and carries on without it.
+
 ## Display options
 
 ### `--theme`
@@ -300,8 +362,9 @@ prints:
 - the emoji at the end of the progress line, which then ends in its dots:
   `Grinding through open tickets assigned to you in oss, work...`
 - the emoji in messages: tickets created, edited, commented on, assigned or
-  moved, "Nothing to grind", source warnings, `config` and `update` messages,
-  the update notice and the debug summary
+  moved, "Nothing to grind", source and context warnings, `context use`,
+  `config` and `update` messages, the update notice and the debug summary
+- in `context list`, the ☕ that marks the active context, which becomes `*`
 - in `sources --check`, the ✅ and ❌. A failure reads `error: <reason>`
   instead, so it still stands out
 - the birthday and Christmas recipes that appear by themselves

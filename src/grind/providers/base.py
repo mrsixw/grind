@@ -28,6 +28,10 @@ class Provider(ABC):
 
     #: The name used in ``provider = "..."``. Set by each subclass.
     name: str = ""
+    #: The config keys that narrow what ``list`` searches, which a working
+    #: context may override (``mine`` is always allowed). Empty means a
+    #: context can only choose mine or everyone's for this provider.
+    scope_keys: tuple[str, ...] = ()
 
     def __init__(self, source: str, config: dict):
         self.source = source

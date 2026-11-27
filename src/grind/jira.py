@@ -79,6 +79,7 @@ class JiraProvider(HttpProvider):
     """JIRA Cloud, Server or Data Center."""
 
     name = "jira"
+    scope_keys = ("project", "projects", "jql")
     default_token_env = ("JIRA_TOKEN", "JIRA_API_TOKEN")
 
     def __init__(self, source: str, config: dict):

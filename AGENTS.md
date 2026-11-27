@@ -17,6 +17,7 @@
     - `refs.py` — `<source>:<key>` reference parsing
   - `github.py` — GitHub Issues provider
   - `jira.py` — JIRA provider (Cloud REST v3, Server/Data Center REST v2)
+  - `contexts.py` — working contexts: `[contexts.<name>]` parsing, the stored active context, and laying a context over its source's config
   - `settings.py` — `Settings` dataclass resolved from flags + config file, received by subcommands via `@click.pass_obj`
   - `tables.py` — every table grind prints: tabulate in the chosen `--table-style`, coloured by the theme and clipped to the terminal
   - `ui.py` — Terminal themes, seasonal colour system, coffee and cake easter eggs
